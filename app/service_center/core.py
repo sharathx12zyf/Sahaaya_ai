@@ -206,9 +206,32 @@ def spoken_time(hhmm: str) -> str:
     return f"{h12}{mm} at night" if part == "night" else f"{h12}{mm} in the {part}"
 
 
+_PART = {  # part of day, in each language, decided by code from the hour
+    "en": ["early morning", "morning", "afternoon", "evening", "night", "midnight"],
+    "kn": ["ಬೆಳಗಿನ ಜಾವ", "ಬೆಳಿಗ್ಗೆ", "ಮಧ್ಯಾಹ್ನ", "ಸಂಜೆ", "ರಾತ್ರಿ", "ಮಧ್ಯರಾತ್ರಿ"],
+    "hi": ["तड़के", "सुबह", "दोपहर", "शाम", "रात", "आधी रात"],
+    "te": ["తెల్లవారుజామున", "ఉదయం", "మధ్యాహ్నం", "సాయంత్రం", "రాత్రి", "అర్ధరాత్రి"],
+}
+
+
+def _part_index(h: int) -> int:
+    return 5 if h == 0 else 0 if h < 6 else 1 if h < 12 else 2 if h < 16 else 3 if h < 20 else 4
+
+
+def say_range(start: str, end: str, lang: str) -> str:
+    """'14:00','15:00' -> 'ಮಧ್ಯಾಹ್ನ 2 ರಿಂದ 3' / 'दोपहर 2 से 3 बजे' / 'మధ్యాహ్నం 2 నుంచి 3' / '2 to 3 in the afternoon'."""
+    h1, m1 = int(start[:2]), int(start[3:5])
+    h2, m2 = (0, 0) if end.startswith("24") else (int(end[:2]), int(end[3:5]))
+    t = lambda h, m: f"{h % 12 or 12}" + (f":{m:02d}" if m else "")
+    part = _PART.get(lang, _PART["en"])[_part_index(h1)]
+    a, b = t(h1, m1), t(h2, m2)
+    return {"kn": f"{part} {a} ರಿಂದ {b}", "hi": f"{part} {a} से {b} बजे", "te": f"{part} {a} నుంచి {b}"}.get(
+        lang, f"{a} to {b} {'at night' if part == 'night' else 'midnight' if part == 'midnight' else 'in the ' + part}")
+
+
 def _with_spoken(r: dict) -> dict:
-    r["say_as"] = [f"{spoken_time(x[:5])} to {spoken_time(x[6:11])}" for x in r.get("free", [])]
-    r["say_as_note"] = "Translate these phrases into the caller's language exactly; keep the part of day (morning/afternoon/evening/night)."
+    r["say_as"] = {lang: [say_range(x[:5], x[6:11], lang) for x in r.get("free", [])] for lang in _PART}
+    r["say_as_note"] = "Use the phrases for the caller's language exactly as written (they already have the right part of day)."
     return r
 
 
@@ -265,9 +288,10 @@ def book_slot(name: str, purpose: str, date: str, time: str, phone: str) -> dict
     end = datetime.datetime.combine(d, _t(time)) + datetime.timedelta(minutes=int(settings()["slot_minutes"]))
     db.notify("service", f"New {settings()['words']['booking']}: {name} ({purpose}) on {d:%d %b} at {time}")
     day = "today" if d == datetime.date.today() else "tomorrow" if d == datetime.date.today() + datetime.timedelta(1) else f"{d:%A %d %B}"
-    spoken = f"{day}, {spoken_time(time)} to {spoken_time(end.strftime('%H:%M') if end.date() == d else '24:00')}"
-    return {"booked": True, "booking_id": f"B{aid}", "when": f"{d:%A %d %B}, {time} to {end:%H:%M}",
-            "say": f"Tell the caller clearly, in their language: booked for {spoken}."}
+    endtxt = end.strftime('%H:%M') if end.date() == d else '24:00'
+    spoken = {lg: say_range(time, endtxt, lg) for lg in _PART}
+    return {"booked": True, "when": f"{d:%A %d %B}, {time} to {end:%H:%M}",
+            "say": f"Tell the caller clearly that it is booked for {day}, using the phrase for their language: {spoken}"}
 
 
 def my_bookings(phone: str) -> dict:
@@ -455,6 +479,9 @@ def turn_rules() -> str:
         rules.append("- Orders: call price_order for the exact total and delivery check (never add prices yourself), "
                      "read back items + total + pickup/delivery, place_order only after yes.")
     rules.append("- Questions about their existing order/booking/repair: check with the tools first.")
+    rules.append("- Never ask the same question twice in a row. If they said 'evening' / 'go ahead' / 'ok', pick the "
+                 "matching time yourself (the first one in that part of the day), say it, and book when they agree.")
+    rules.append("- Name is optional: if they ask whether it's needed or avoid it, book as 'Customer'. Don't keep asking.")
     return "\n".join(rules)
 
 
@@ -471,8 +498,9 @@ def persona() -> str:
         for i, word in ((0, "today"), (1, "tomorrow")):
             d = (today + datetime.timedelta(days=i)).isoformat()
             o = slots_to_offer(d)
-            parts.append(f"{word} {d}: " + (", ".join(f"{a} ({b})" for a, b in zip(o["free"], o["say_as"]))
-                                            if o["free"] else o.get("note", "none free")))
+            parts.append(f"{word} {d}: " + ("; ".join(
+                f"{x} = " + " / ".join(f"{lg}: {say_range(x[:5], x[6:11], lg)}" for lg in _PART) for x in o["free"])
+                if o["free"] else o.get("note", "none free")))
         known = ("\nFREE TIMES ALREADY CHECKED, only 3 EXAMPLES per day (offer them right away). For a specific time, a part "
                  "of the day (morning/afternoon/evening/night) or another day, call check_free_slots; never say a time or "
                  "part of day is not free without checking it: " + " | ".join(parts))
@@ -482,5 +510,7 @@ You can: {', '.join(can)}. Anything else: offer a staff callback.
 How to help: {c.get('steps', '')}
 {hours_text(c)}.
 When booking, collect: {w['purpose']}. The caller's mobile number is already known from the call: never ask for it.
+The name is nice to have, NEVER required: if the caller asks "do I need to give my name?" or doesn't want to,
+say "no problem" and book as "Customer" as soon as they agree to a time.
 BUSINESS INFO: {c['info']}
 ITEMS AND PRICES (owner's list): {cat or 'none listed'}{known}"""
