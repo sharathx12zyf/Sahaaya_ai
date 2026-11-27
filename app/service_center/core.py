@@ -19,6 +19,8 @@ DEFAULT_TYPE = "repair"
 # ---------------- settings ----------------
 def settings() -> dict:
     s = db.get("sc_settings")
+    if s is not None:
+        s.setdefault("announce_ai", False)
     if not s:
         s = {"type": DEFAULT_TYPE, **copy.deepcopy(TEMPLATES[DEFAULT_TYPE])}
         s.pop("records", None)
@@ -425,7 +427,8 @@ def tools(phone: str) -> list[Tool]:
                   "purpose": {**S, "description": "ONLY the problem / what they need (not the name or number), e.g. 'Vivo V27 screen broken, touch not working'"}, "date": {**S, "description": "YYYY-MM-DD"},
                   "time": {**S, "description": "start time HH:MM from the free slots"}},
                  lambda **a: book_slot(phone=phone, **a), ["name", "purpose", "date", "time"]),
-            Tool("my_bookings", "The caller's upcoming bookings.", {}, lambda: my_bookings(phone)),
+            Tool("my_bookings", "The caller's upcoming bookings (also returns their repairs/orders).", {},
+                 lambda: {**my_bookings(phone), "their_" + w["record"] + "s": my_records(phone)["records"]}),
             Tool("cancel_booking", "Cancel one of the caller's bookings after they confirm.",
                  {"booking_id": S}, lambda booking_id: cancel_booking(booking_id, phone), ["booking_id"]),
         ]
@@ -439,8 +442,10 @@ def tools(phone: str) -> list[Tool]:
                          "total_rupees": S, "address": S, "name": S},
                         lambda **a: place_order(phone=phone, **a), ["items", "fulfilment"]))
     if f.get("records", True):
-        out.append(Tool("my_status", f"Status of the caller's {w['record']}s (optionally one ID).",
-                        {"record_id": S}, lambda record_id="": my_records(phone, record_id)))
+        out.append(Tool("my_status", f"Status of the caller's {w['record']}s (optionally one ID); also returns their bookings. "
+                        f"Use for 'is my {w['record']} ready/done', 'where is my order'.",
+                        {"record_id": S}, lambda record_id="": {**my_records(phone, record_id),
+                                                               "upcoming_bookings": my_bookings(phone)["bookings"]}))
     out.append(Tool("create_ticket", "Register a complaint or staff callback.",
                     {"issue": S, "details": S, "urgent": {"type": "boolean"}},
                     lambda issue, details="", urgent=False: create_ticket(issue, details, phone, urgent), ["issue"]))
@@ -477,7 +482,8 @@ def turn_rules() -> str:
                      "ALWAYS call check_free_slots again with that time. Never say a time is not free unless that call said so.")
     if f.get("orders"):
         rules.append("- Orders: call price_order for the exact total and delivery check (never add prices yourself), "
-                     "read back items + total + pickup/delivery, place_order only after yes.")
+                     "read back items + total + pickup/delivery ONCE. When the caller says yes, call place_order "
+                     "immediately (name 'Customer' if they didn't give one; don't ask about the name).")
     rules.append("- Questions about their existing order/booking/repair: check with the tools first.")
     rules.append("- Never ask the same question twice in a row. If they said 'evening' / 'go ahead' / 'ok', pick the "
                  "matching time yourself (the first one in that part of the day), say it, and book when they agree.")

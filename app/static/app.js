@@ -443,6 +443,13 @@ async function refresh() {
     $("#keybanner").classList.remove("hidden");
   }
   switchTab("service"); loadSetup();
+  $("#agentgender").value = status.agent_gender;
+  $("#agentgender").onchange = async () => {
+    await api("/api/agent-gender", { gender: $("#agentgender").value });
+    Object.keys(fillers).forEach((k) => delete fillers[k]);
+    const r = await api("/api/tts", { text: "Hi, how can I help?", lang: "en" });
+    if (r.audio) new Audio("data:audio/wav;base64," + r.audio).play();
+  };
   $("#voicepick").innerHTML = Object.entries(status.languages).map(([k, n]) => `<label style="flex:0 1 170px">${n} engine
     <select data-vp="${k}"><option value="bhashini" ${status.voice_providers[k] === "bhashini" ? "selected" : ""} ${status.bhashini ? "" : "disabled"}>Bhashini${status.bhashini ? "" : " (key not set)"}</option>
     <option value="sarvam" ${status.voice_providers[k] === "sarvam" ? "selected" : ""}>Sarvam</option></select></label>

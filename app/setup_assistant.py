@@ -22,6 +22,8 @@ def _update(**kw) -> dict:
     allowed = {"name", "agent_name", "open", "close", "slot_minutes", "closed_days", "break", "info", "steps",
                "announce_ai", "booking_name", "booking_asks"}
     upd = {k: v for k, v in kw.items() if k in allowed and v not in (None, "")}
+    if kw.get("agent_gender") in ("male", "female"):
+        db.put("agent_gender", kw["agent_gender"])
     if "type" in kw and kw["type"] in TEMPLATES and kw["type"] != service.settings()["type"]:
         service.apply_template(kw["type"], keep_name=True)
         _clean_start()
@@ -81,6 +83,7 @@ TOOLS = [
         "info": {"type": "string", "description": "facts callers may be told (address, delivery, payment), in English"},
         "steps": {"type": "string", "description": "how the agent must handle calls, in English, e.g. 'never quote a price; ask them to visit for inspection, then a quotation is given'"},
         "announce_ai": {"type": "boolean", "description": "say 'AI assistant' in the greeting"},
+        "agent_gender": {"type": "string", "description": "male or female voice/agent, if the owner says"},
     }, lambda **a: _update(**a)),
     Tool("set_items", "Save the owner's list of services/items with prices.",
          {"items": {"type": "string", "description": "'name | price | unit | note; ...'"}}, _set_items, ["items"]),

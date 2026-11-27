@@ -49,16 +49,16 @@ def _startup():
 
 
 GREET = {
-    "kn": ("ನಮಸ್ಕಾರ, {biz}, ನಾನು {agent}{ai} ಮಾತಾಡ್ತಿರೋದು. ಹೇಳಿ.", ", AI ಸಹಾಯಕಿ"),
-    "hi": ("नमस्ते, {biz} से मैं {agent}{ai} बोल रही हूँ. बताइए?", ", AI सहायक"),
+    "kn": ("ನಮಸ್ಕಾರ, {biz}, ನಾನು {agent}{ai} ಮಾತಾಡ್ತಿರೋದು. ಹೇಳಿ sir.", ", AI ಸಹಾಯಕ"),
+    "hi": ("नमस्ते, {biz} से मैं {agent}{ai} बोल {rh} हूँ. बताइए?", ", AI सहायक"),
     "te": ("నమస్కారం, {biz} నుంచి {agent}{ai} మాట్లాడుతున్నాను. చెప్పండి.", ", AI సహాయకురాలు"),
     "en": ("Hi, this is {agent}{ai} from {biz}. How can I help?", ", an AI assistant,"),
 }
 
 
-def greeting(lang, biz, agent, announce_ai=False):
+def greeting(lang, biz, agent, announce_ai=False, gender="male"):
     tpl, ai = GREET.get(lang, GREET["en"])
-    return tpl.format(biz=biz, agent=agent, ai=ai if announce_ai else "")
+    return tpl.format(biz=biz, agent=agent, ai=ai if announce_ai else "", rh="रहा" if gender == "male" else "रही")
 
 
 def err(e: Exception, code=400):
@@ -68,6 +68,13 @@ def err(e: Exception, code=400):
 @app.get("/")
 def index():
     return FileResponse(os.path.join(STATIC, "index.html"))
+
+
+@app.post("/api/agent-gender")
+def set_agent_gender(gender: str = Form(...)):
+    if gender in ("male", "female"):
+        db.put("agent_gender", gender)
+    return {"ok": True, "gender": agent_gender()}
 
 
 @app.post("/api/voice-provider")
@@ -95,6 +102,7 @@ def status():
     return {"keys": key_status(), "languages": {k: NAMES[k] for k in LANGS}, "voices": VOICES,
             "chosen_voices": db.get("voices") or {},
             "voice_providers": {l: speech.provider_for(l, db.get("voice_providers")) for l in LANGS},
+            "agent_gender": agent_gender(),
             "bhashini": bhashini.available(),
             "voice_service": voice_service_ok(force=True), "voice_service_problem": voice_service_reason(),
             "demo_dashboard_url": os.environ.get("DEMO_DASHBOARD_PUBLIC_URL", "http://localhost:9000")}
@@ -108,13 +116,23 @@ def _sentences(t):
 VOICES = ["priya", "kavya", "neha", "shreya", "ritu", "roopa", "kavitha", "simran"]
 
 
+def agent_gender() -> str:
+    return db.get("agent_gender") or "male"
+
+
 def speaker(lang: str) -> str | None:
-    """The owner's chosen Sarvam voice for this language (Settings), else Sarvam's default voice."""
-    return (db.get("voices") or {}).get(lang)
+    """The owner's chosen Sarvam voice for this language, else a voice that matches the agent's gender
+    (male: Sarvam's default male voice; female: 'priya')."""
+    chosen = (db.get("voices") or {}).get(lang)
+    if chosen:
+        return chosen
+    return None if agent_gender() == "male" else "priya"
 
 
 def say(text: str, lang: str) -> bytes:
     """Speak with the engine chosen for this language (Bhashini or Sarvam)."""
+    from .ai.agent import fix_pronunciation
+    text = fix_pronunciation(text)
     return speech.speak(text, lang, speaker(lang), provider=speech.provider_for(lang, db.get("voice_providers")))
 
 
@@ -131,8 +149,8 @@ def voice_clips(text: str, lang: str) -> list[str]:
 
 
 FILLERS = {
-    "kn": ["ಹಾ, ಒಂದ್ ನಿಮಿಷ.", "ಸರಿ, ನೋಡ್ತೀನಿ.", "ಓಕೆ ಓಕೆ."],
-    "hi": ["जी, एक मिनट.", "अच्छा, देखती हूँ.", "हाँ जी."],
+    "kn": ["ಹಾ, ಒಂದ್ ನಿಮಿಷ sir.", "ಸರಿ, ನೋಡ್ತೀನಿ.", "ಓಕೆ ಓಕೆ."],
+    "hi": ["जी, एक मिनट.", "अच्छा, देखता हूँ.", "हाँ जी."],
     "te": ["ఆ, ఒక్క నిమిషం అండి.", "సరే, చూస్తాను.", "అలాగే."],
     "en": ["Sure, one sec.", "Okay, let me see.", "Mm-hmm."],
 }
@@ -143,8 +161,12 @@ def filler(lang: str = "en", i: int = 0):
     """Short 'one moment' phrases, generated once and cached: played the instant the caller stops
     talking, so there is no dead silence while the agent thinks."""
     lang = lang if lang in FILLERS else "en"
+    if lang == "hi" and agent_gender() == "female":
+        FILLERS["hi"][1] = "अच्छा, देखती हूँ."
+    elif lang == "hi":
+        FILLERS["hi"][1] = "अच्छा, देखता हूँ."
     i = i % len(FILLERS[lang])
-    path = os.path.join(db.DATA_DIR if hasattr(db, "DATA_DIR") else ".", f"filler_{lang}_{i}_{speech.provider_for(lang, db.get('voice_providers'))}_{speaker(lang) or 'default'}.b64")
+    path = os.path.join(db.DATA_DIR if hasattr(db, "DATA_DIR") else ".", f"filler_{lang}_{i}_{agent_gender()}_{speech.provider_for(lang, db.get('voice_providers'))}_{speaker(lang) or 'default'}.b64")
     if os.path.exists(path):
         return {"audio": open(path).read()}
     if not voice_service_ok():
@@ -187,18 +209,19 @@ def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Fo
         cfg = service.settings()
         if cfg.get("active") is False:
             return err(Exception("The agent is paused. Switch it to Active in the Service Center tab."))
-        agent = Agent(service.persona(), service.tools(caller), caller, turn_rules=service.turn_rules(), expose_caller=False)
+        agent = Agent(service.persona(), service.tools(caller), caller, turn_rules=service.turn_rules(), expose_caller=False,
+                      gender=agent_gender())
         lang = lang or cfg.get("default_language", "kn")
-        greet = greeting(lang, cfg["name"], cfg["agent_name"], cfg.get("announce_ai", False))
+        greet = greeting(lang, cfg["name"], cfg["agent_name"], cfg.get("announce_ai", False), agent_gender())
     else:
         conn = connect.connection()
         if not conn:
             return err(Exception("Connect a dashboard first (Dashboard Connect tab)."))
         tools, _guard = connect.tools(caller)
         known = connect.prefetch(caller, {t.name: t for t in tools})
-        agent = Agent(connect.persona() + "\n" + known, tools, caller, turn_rules=connect.turn_rules())
+        agent = Agent(connect.persona() + "\n" + known, tools, caller, turn_rules=connect.turn_rules(), gender=agent_gender())
         p = connect.profile()
-        greet = greeting(lang, p["name"] + " support", p["agent_name"], p.get("announce_ai", False))
+        greet = greeting(lang, p["name"] + " support", p["agent_name"], p.get("announce_ai", False), agent_gender())
     agent.say_first(greet)
     sid = uuid.uuid4().hex[:12]
     CALLS[sid] = {"section": section, "agent": agent, "lang": lang, "caller": caller, "misheard": 0,

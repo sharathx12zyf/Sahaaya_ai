@@ -96,5 +96,8 @@ deleting **blocked**. The owner can change each one.
 ```bash
 pip install -r requirements.txt && python -m pytest -q
 ```
+Full end-to-end browser test (needs keys, the app on :8000 and the sample dashboard on :9000; uses Playwright):
+`node tests/browser/e2e.js .` checks 26 things across both sections (setup by talking, bookings, orders,
+languages, KYC fix on the company dashboard, privacy, sheet connection).
 Offline tests (no keys) cover: starting without keys, slot logic (breaks, closed days, double booking),
 privacy guard, blocked actions, verification, language guard, and broken-dashboard handling.

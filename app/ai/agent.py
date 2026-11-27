@@ -48,15 +48,6 @@ TALK EXACTLY LIKE A REAL RECEPTIONIST ON THE PHONE (most important for how you s
     slot, booking, time, OK, charging, display, order, KYC, link, upload. Never write them in Kannada/Telugu/Hindi
     letters (not "ಸ್ಕ್ರೀನ್", "ಪ್ರಾಬ್ಲಮ್", "స్లాట్", "बुकिंग").
   * Short sentences, each under about 12 words, ended with a full stop. Not one long sentence joined by commas.
-  * Examples of the right sound (match this style in every language):
-    Hindi: "अरे, phone में पानी चला गया? कोई बात नहीं जी. आज शाम 5 बजे आ जाइए. ठीक रहेगा?"
-    Kannada: "ಅಯ್ಯೋ, phone ಗೆ ನೀರು ಹೋಯ್ತಾ? ಪರವಾಗಿಲ್ಲ ಸಾರ್. ಇವತ್ತು ಸಂಜೆ 5 ಗಂಟೆಗೆ ಬನ್ನಿ. Ok ನಾ?"
-    Telugu: "అయ్యో, phone లో నీళ్ళు పోయాయా? పర్వాలేదు అండి. ఈ రోజు సాయంత్రం 5 కి వచ్చేయండి. Ok నా?"
-    English: "Oh no, water got into the phone? Don't worry. Come by today at 5 in the evening. Does that work?"
-- Use everyday SPOKEN language, never written/bookish language. Kannada like Bengaluru/Mysuru people talk
-  ("ಮಾಡ್ತೀನಿ", "ಬನ್ನಿ", "ಆಯ್ತು", "ಸರಿ ಸರಿ", "ಓಕೆ ಸಾರ್/ಮೇಡಂ"), Hindi like a friendly shop ("जी", "अच्छा", "ठीक है जी",
-  "आ जाइए"), Telugu like Hyderabad/Andhra speakers ("అలాగే అండి", "సరే", "చెప్పండి", "వచ్చేయండి"). Use common English words
-  the way Indians do on the phone (phone, slot, booking, screen, OK, problem).
 - Short and warm, often just one sentence. Start with a small natural reaction when it fits
   ("ಓಹ್, ಹೌದಾ", "अच्छा", "అయ్యో", "Oh okay") but don't repeat the same one.
 - Dates like people say them: "ನಾಳೆ ಸಂಜೆ 6ಕ್ಕೆ", "कल शाम 6 बजे", "రేపు సాయంత్రం 6కి"; never "28th November" or "2026".
@@ -65,7 +56,9 @@ TALK EXACTLY LIKE A REAL RECEPTIONIST ON THE PHONE (most important for how you s
   "booking ID", "as per records", "processing", "is there anything else I can help you with" every time. End naturally
   ("ಸರಿ ಸಾರ್, ಬನ್ನಿ", "ठीक है जी, आ जाइए", "సరే అండి, వచ్చేయండి", "Great, see you then!").
 - Don't repeat back everything word for word; a quick natural check is enough ("ನಾಳೆ ಸಂಜೆ 6ಕ್ಕೆ, ಓಕೆ ನಾ?").
-- Address the caller politely: "ಸಾರ್/ಮೇಡಂ", "जी / सर / मैडम", "అండి / సార్ / మేడం", or their name + "ಅವರೇ/जी/గారు".
+- Address the caller politely. Use "sir"/"madam" only when you are sure of the caller's gender (otherwise use the
+  neutral polite word of the language: "ಅವರೇ"/"ಹೇಳಿ", "जी", "అండి"). Write "sir" and "madam" ALWAYS in English letters (the voice says them correctly
+  that way; never "ಸಾರ್", "ಮೇಡಂ", "సార్", "सर"). Hindi also "जी"; Telugu also "అండి"; or their name + "ಅವರೇ/जी/గారు".
 
 CALLERS SPEAK CASUALLY
 - Callers mix languages mid-sentence (Kanglish, Hinglish, Telugu + English), use fillers ("umm", "aa", "haa"),
@@ -82,6 +75,8 @@ CALLERS SPEAK CASUALLY
 - If you offered choices and the caller just says "yes"/"ok", don't pick for them: ask which one.
 - If they are vague ("evening, anytime", "whatever is free"), suggest ONE good option ("6 o'clock okay?").
 - Before booking or ordering, read everything back in ONE short sentence and act when they say yes.
+  Confirm only ONCE: when the caller says yes / ok / ಹೌದು / हाँ / అవును to your read-back, do the booking
+  right away with the tool. Never ask "shall I book?" a second time.
 
 ACCURACY RULES (most important)
 - Use ONLY the business info, the owner's rules and tool results. Never guess or invent
@@ -104,9 +99,31 @@ ACCURACY RULES (most important)
   "ರಾತ್ರಿ 9"; Hindi "सुबह 10", "शाम 5", "रात 9"; Telugu "ఉదయం 10", "సాయంత్రం 5", "రాత్రి 9"; English "10 in the morning"."""
 
 
+# Style guide + example of the right sound, only for the language of the call (examples in other
+# languages leak words into the reply).
+LANG_STYLE = {
+    "kn": """Speak like a friendly Bengaluru/Mysuru shop person, NOT textbook Kannada. Example of the right sound:
+"ಅಯ್ಯೋ, phone ಗೆ ನೀರು ಹೋಯ್ತಾ? ಪರವಾಗಿಲ್ಲ. ಇವತ್ತು ಸಂಜೆ 5 ಗಂಟೆಗೆ ಬನ್ನಿ. Ok ನಾ?"
+Use: "ಹೇಳಿ", "ಏನ್ ಆಯ್ತು?", "ಅಯ್ಯೋ, ಹೌದಾ?", "ಚಿಂತೆ ಮಾಡ್ಬೇಡಿ", "ಪರವಾಗಿಲ್ಲ", "ನೋಡ್ತೀವಿ", "ಮಾಡ್ಕೊಡ್ತೀವಿ", "ಬನ್ನಿ", "ಬರ್ತೀರಾ?",
+"ಓಕೆ ನಾ?", "ಆಯ್ತು", "ಒಂದ್ ನಿಮಿಷ". Avoid bookish words: "ತಿಳಿಸುತ್ತೀರಾ" (say "ಹೇಳ್ತೀರಾ"), "ಸಹಾಯ ಮಾಡಲಿ" (say "ಏನ್ ಬೇಕು ಹೇಳಿ"),
+"ಸಮಸ್ಯೆ" (say "problem"), "ಸರಿಪಡಿಸುತ್ತೇವೆ" (say "repair ಮಾಡ್ಕೊಡ್ತೀವಿ"), "ಮಾಡುತ್ತೇನೆ" (say "ಮಾಡ್ತೀನಿ").""",
+    "hi": """Speak friendly everyday Hindi/Hinglish like a local shop. Example of the right sound:
+"अरे, phone में पानी चला गया? कोई बात नहीं जी. आज शाम 5 बजे आ जाइए. ठीक रहेगा?"
+""",
+    "te": """Speak friendly everyday Telugu like Hyderabad/Andhra shop staff, using ONLY Telugu (and English words),
+never Kannada or Hindi words. Example of the right sound:
+"అయ్యో, phone లో నీళ్ళు పోయాయా? పర్వాలేదు అండి. ఈ రోజు సాయంత్రం 5 కి వచ్చేయండి. Ok నా?"
+Use: "చెప్పండి", "అలాగే అండి", "సరే", "వచ్చేయండి", "చూస్తాం", "పర్వాలేదు", "ఒక్క నిమిషం".""",
+    "en": """Speak friendly Indian English like a helpful shop person. Example of the right sound:
+"Oh no, water got into the phone? Don't worry. Come by today at 5 in the evening. Does that work?"
+""",
+}
+
+
 class Agent:
     def __init__(self, persona: str, tools: list[Tool], caller: str, llm: LLM | None = None,
-                 max_rounds: int = 6, turn_rules: str = "", expose_caller: bool = True):
+                 max_rounds: int = 6, turn_rules: str = "", expose_caller: bool = True, gender: str = "male"):
+        self.gender = gender
         self.expose_caller = expose_caller   # False: the model never sees the number (tools already know it)
         self.turn_rules = turn_rules        # repeated next to every caller message (owner's rules)
         self.tools = {t.name: t for t in tools}
@@ -121,11 +138,15 @@ class Agent:
         self.ended = False
 
     def _system(self):
+        g = getattr(self, "gender", "male")
+        gender_rule = ("You are a MAN. In Hindi always use masculine forms: 'बोल रहा हूँ', 'करता हूँ', 'देखता हूँ', "
+                       "'कर दूँगा'." if g == "male" else
+                       "You are a WOMAN. In Hindi always use feminine forms: 'बोल रही हूँ', 'करती हूँ', 'देखती हूँ', 'कर दूँगी'.")
         who = (f"The caller's phone number is {self.caller} (already verified by the phone network; use it for "
                f"lookups, never ask for it or say it aloud)." if self.expose_caller else
                "The caller's mobile number is captured automatically from the call and saved with every booking/order. "
                "You do not know it and never need to ask for it.")
-        return f"{self.persona}\n\n{BASE_RULES}\n\n{who}\n{calendar_hint()}"
+        return f"{self.persona}\n{gender_rule}\n\n{BASE_RULES}\n\n{who}\n{calendar_hint()}"
 
     def say_first(self, text: str):
         self.messages.append({"role": "assistant", "content": text})
@@ -153,7 +174,7 @@ class Agent:
         self.messages[0]["content"] = self._system()      # refresh clock each turn
         self.messages.append({"role": "user", "content": text})
         bad = misheard_name(text)
-        hint = {"role": "system", "content": f"The caller is speaking {name}. Reply in {name}."
+        hint = {"role": "system", "content": f"The caller is speaking {name}. Reply in {name}.\n{LANG_STYLE.get(lang, '')}"
                 + (f"\nThe caller's name was misheard (heard '{bad}', which is not a name). Do not use it; "
                    f"say sorry and ask for their name again." if bad else "")
                 + (f"\nFollow the owner's rules exactly:\n{self.turn_rules}" if self.turn_rules else "")}
@@ -168,6 +189,29 @@ class Agent:
             for c in calls:
                 self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": self._run_tool(c)})
         out = (msg.get("content") or "").strip()
+        # caller clearly agreed to our read-back question, but nothing was done: do it now (never ask twice)
+        turn_start = len(self.messages) - 1 - next(i for i, m in enumerate(reversed(self.messages)) if m.get("role") == "user")
+        acted = any(m.get("role") == "assistant" and any(c["function"]["name"] in ACTION_TOOLS or
+                    self.tools.get(c["function"]["name"]) and "CHANGES DATA" in self.tools[c["function"]["name"]].description
+                    for c in m.get("tool_calls") or []) for m in self.messages[turn_start:])
+        prev_q = next((m.get("content") or "" for m in reversed(self.messages[:turn_start]) if m.get("role") == "assistant"
+                       and m.get("content")), "")
+        if out and not acted and AGREE.search(text) and prev_q.strip().endswith("?"):
+            nudge = {"role": "user", "content": "(The caller just agreed to what you asked. Do it now with the tool "
+                                                "(booking/order/action), then tell them it's done. Don't ask again.)"}
+            m2 = self.llm.chat(self.messages + [nudge, hint], tools=schemas)
+            tmp = [nudge]
+            for _ in range(3):
+                calls = m2.get("tool_calls") or []
+                if not calls:
+                    break
+                tmp.append({"role": "assistant", "content": m2.get("content") or "", "tool_calls": calls})
+                for c in calls:
+                    tmp.append({"role": "tool", "tool_call_id": c["id"], "content": self._run_tool(c)})
+                m2 = self.llm.chat(self.messages + tmp + [hint], tools=schemas)
+            if len(tmp) > 1:                     # an action really happened: keep it, drop the nudge text
+                self.messages += tmp[1:]
+                out = (m2.get("content") or out).strip()
         # "Let me check, one moment" without actually checking: make it do the check now, like a person would
         used_tool = any(m.get("role") == "tool" for m in self.messages[self.messages.index(
             next(m for m in reversed(self.messages) if m.get("role") == "user")):])
@@ -187,9 +231,13 @@ class Agent:
             out = (msg.get("content") or out).strip()
         if out and lang != "en" and (detect_script_language(out, lang) != lang or foreign_script(out, lang)):
             fix = self.llm.chat(self.messages + [{"role": "assistant", "content": out},
-                                {"role": "user", "content": f"(Say exactly that again in {name}, native script only.)"}])
+                                {"role": "user", "content": f"(Say exactly that again in {name} only: no words from other "
+                                                            f"Indian languages; English words in English letters are fine.)"}],
+                                tools=schemas)
+            if fix.get("tool_calls"):          # it should only re-word, not act: keep the original text
+                fix = {"content": out}
             out = (fix.get("content") or out).strip()
-        out = mask_numbers(out)
+        out = fix_pronunciation(mask_numbers(out))
         if not out:
             out = {"kn": "ಕ್ಷಮಿಸಿ, ಮತ್ತೊಮ್ಮೆ ಹೇಳುತ್ತೀರಾ?", "hi": "माफ़ कीजिए, फिर से बोलेंगे?"}.get(
                 lang, "Sorry, could you say that again?")
@@ -197,9 +245,13 @@ class Agent:
         return out
 
 
+AGREE = re.compile(r"^\W*(yes|yeah|yep|ok|okay|sure|go ahead|do it|haan|han|ha|ji|हाँ|हां|जी|ठीक है|कर दीजिए|कर दो|"
+                   r"ಹೌದು|ಸರಿ|ಓಕೆ|ಮಾಡಿ|ಆಯ್ತು|అవును|సరే|ఓకే|చేయండి|కానివ్వండి)(?=$|[\s,.!?।])", re.I)
+ACTION_TOOLS = {"book_slot", "place_order", "cancel_booking", "create_ticket"}
+
 STALL = re.compile(r"(let me check|i'?ll check|one moment|checking now|i'?m booking|booking it now|"
                    r"बुक कर रही|book कर रही|बुक कर देती|book कर देती|ಬುಕ್ ಮಾಡ್ತೀನಿ|book ಮಾಡ್ತೀನಿ|book ಮಾಡ್ತಿದ್ದೀನಿ|"
-                   r"బుక్ చేస్తున్నా|book చేస్తున్నా|ಚೆಕ್ ಮಾಡ್ತೀನಿ|ನೋಡುತ್ತೇನೆ|ನೋಡ್ತೀನಿ|ಒಂದು ನಿಮಿಷ|"
+                   r"బుక్ చేస్తున్నా|book చేస్తున్నా|order ಮಾಡ್ತಿದ್ದೀನಿ|order ಮಾಡ್ತೀನಿ|ಮಾಡ್ತಿದ್ದೀನಿ|order कर रहा|order कर देता|order చేస్తున్నా|placing (the|your) order|booking ಮಾಡ್ತೀನಿ|ಬುಕಿಂಗ್ ಮಾಡ್ತೀನಿ|booking कर देता|booking कर रहा|booking చేస్తా|ಚೆಕ್ ಮಾಡ್ತೀನಿ|ನೋಡುತ್ತೇನೆ|ನೋಡ್ತೀನಿ|ಒಂದು ನಿಮಿಷ|"
                    r"చూస్తాను|చెక్ చేస్తాను|ఒక్క నిమిషం|देखती हूँ|देखता हूँ|चेक कर|एक मिनट)", re.I)
 
 NOT_A_NAME = {"that", "it", "this", "ok", "okay", "yes", "no", "haan", "ha", "hmm", "umm", "aa", "sir", "madam",
@@ -216,6 +268,18 @@ def misheard_name(text: str) -> str | None:
 
 
 _PHONE = re.compile(r"(?<!\d)(?:\+?91[\s-]?)?\d{5}[\s-]?\d{5}(?!\d)")
+
+
+_SPOKEN_FIXES = [(re.compile(w), r) for w, r in (
+    ("ಸಾರ್", "sir"), ("ಸರ್", "sir"), ("ಮೇಡಂ", "madam"), ("ಮೇಡಮ್", "madam"),
+    ("సార్", "sir"), ("సర్", "sir"), ("మేడం", "madam"), ("మేడమ్", "madam"))]
+
+
+def fix_pronunciation(text: str) -> str:
+    """'ಸಾರ್' is read by the voice as a long 'saar'; English letters make it sound like people say it."""
+    for pat, rep in _SPOKEN_FIXES:
+        text = pat.sub(rep, text)
+    return text
 
 
 def mask_numbers(text: str) -> str:

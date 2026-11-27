@@ -104,9 +104,12 @@ def speak(text: str, lang: str, speaker: str | None = None, rate: int = 22050, p
     return _sarvam_speak(text, lang, speaker, rate)
 
 
+PACE = float(os.environ.get("VOICE_PACE", "1.15"))   # a little faster than default: sounds like a real call
+
+
 def _sarvam_speak(text: str, lang: str, speaker: str | None = None, rate: int = 22050) -> bytes:
     body = {"text": text[:1500], "target_language_code": SARVAM_LANG.get(lang, "en-IN"),
-            "speech_sample_rate": rate}
+            "speech_sample_rate": rate, "pace": PACE}
     if speaker:
         body["speaker"] = speaker
     r = requests.post(f"{BASE}/text-to-speech", headers=_h(), json=body, timeout=30)

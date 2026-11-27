@@ -183,3 +183,17 @@ def test_misheard_name_is_caught():
     slot = service.free_slots(day)["free"][0][:5]
     assert service.book_slot("అది", "screen", day, slot, "9000011111")["booked"] is False
     service.apply_template("repair")
+
+
+def test_sir_written_so_the_voice_says_it_right():
+    from app.ai.agent import fix_pronunciation
+    assert fix_pronunciation("ಆಯ್ತು ಸಾರ್, ಬನ್ನಿ") == "ಆಯ್ತು sir, ಬನ್ನಿ"
+    assert fix_pronunciation("సరే సార్, మేడం") == "సరే sir, madam"
+
+
+def test_agreement_detected_in_all_languages():
+    from app.ai.agent import AGREE
+    for t in ["ಹೌದು, order ಮಾಡಿ", "हाँ ठीक है", "అవును", "ok go ahead"]:
+        assert AGREE.search(t), t
+    for t in ["ಹೌದಾ ಎಷ್ಟು?", "yesterday it broke"]:
+        assert not AGREE.search(t), t

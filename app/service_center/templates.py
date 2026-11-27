@@ -3,8 +3,8 @@
 
 TEMPLATES = {
     "repair": {
-        "label": "Phone / electronics repair",
-        "name": "Mysuru Mobile Care", "agent_name": "Priya",
+        "label": "Phone / electronics repair", "announce_ai": False,
+        "name": "Mysuru Mobile Care", "agent_name": "Arjun",
         "open": "10:00", "close": "20:00", "slot_minutes": 30, "closed_days": ["Sunday"], "break": ["13:30", "14:30"],
         "features": {"bookings": True, "orders": False, "records": True},
         "words": {"booking": "repair appointment", "record": "repair", "records": "Repairs in shop",
@@ -21,7 +21,7 @@ TEMPLATES = {
     },
     "grocery": {
         "label": "Grocery / kirana store",
-        "name": "Annapoorna Kirana Store", "agent_name": "Kavya",
+        "name": "Annapoorna Kirana Store", "agent_name": "Kiran",
         "open": "07:00", "close": "21:30", "slot_minutes": 60, "closed_days": [], "break": ["14:00", "15:00"],
         "features": {"bookings": False, "orders": True, "records": True},
         "words": {"booking": "delivery slot", "record": "order", "records": "Orders", "purpose": "items"},
@@ -39,7 +39,7 @@ TEMPLATES = {
     },
     "clinic": {
         "label": "Clinic / doctor",
-        "name": "Sri Lakshmi Clinic", "agent_name": "Anitha",
+        "name": "Sri Lakshmi Clinic", "agent_name": "Ravi",
         "open": "09:30", "close": "20:00", "slot_minutes": 15, "closed_days": ["Sunday"], "break": ["13:00", "16:00"],
         "features": {"bookings": True, "orders": False, "records": False},
         "words": {"booking": "doctor appointment", "record": "visit", "records": "Visits", "purpose": "reason for visit"},
@@ -52,7 +52,7 @@ TEMPLATES = {
     },
     "salon": {
         "label": "Salon / beauty parlour",
-        "name": "Glow Unisex Salon", "agent_name": "Divya",
+        "name": "Glow Unisex Salon", "agent_name": "Vikram",
         "open": "10:00", "close": "21:00", "slot_minutes": 30, "closed_days": ["Tuesday"], "break": ["14:00", "14:30"],
         "features": {"bookings": True, "orders": False, "records": False},
         "words": {"booking": "salon appointment", "record": "visit", "records": "Visits", "purpose": "service"},
@@ -64,7 +64,7 @@ TEMPLATES = {
     },
     "restaurant": {
         "label": "Restaurant / hotel",
-        "name": "Mylari Tiffin Room", "agent_name": "Ramya",
+        "name": "Mylari Tiffin Room", "agent_name": "Raju",
         "open": "07:00", "close": "22:00", "slot_minutes": 30, "closed_days": [], "break": ["15:30", "18:00"],
         "features": {"bookings": True, "orders": True, "records": True},
         "words": {"booking": "table booking", "record": "order", "records": "Orders", "purpose": "number of people"},
