@@ -50,7 +50,8 @@ async function fillCallers() {
 // The server sends the first sentence's voice; the remaining sentences are fetched in parallel
 // while it plays, and played in order as soon as each is ready.
 const player = { queue: [], el: null, playing: false, gen: 0 };
-function playClips(clips, rest, lang) {
+function playClips(clips, rest, lang, text) {
+  if ((!clips || !clips.length) && text) { browserSpeak(text, lang); return; }
   const gen = player.gen;
   player.queue.push(...clips.map((c) => Promise.resolve(c)));
   for (const t of rest || []) player.queue.push(api("/api/tts", { text: t, lang }).then((r) => r.audio).catch(() => null));
@@ -131,6 +132,31 @@ const pttUp = (e) => { e.preventDefault(); ptt.classList.remove("down"); stopRec
 ptt.onpointerdown = pttDown; ptt.onpointerup = pttUp; ptt.onpointerleave = pttUp;
 $("#handsfree").onchange = () => ptt.classList.toggle("hidden", $("#handsfree").checked);
 
+// ---------------- built-in browser voice (used when the voice service is unavailable) ----------------
+const BCP = { kn: "kn-IN", hi: "hi-IN", te: "te-IN", en: "en-IN" };
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const browserVoice = () => !status.voice_service;
+function browserSpeak(text, lang, done) {
+  if (!window.speechSynthesis) return done && done();
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.lang = BCP[lang] || "en-IN";
+  const v = speechSynthesis.getVoices().find((x) => x.lang === u.lang) || speechSynthesis.getVoices().find((x) => x.lang.startsWith(lang));
+  if (v) u.voice = v;
+  u.rate = 1.0; player.playing = true; setState("speaking");
+  u.onend = u.onerror = () => { player.playing = false; setState(call.session ? "listening" : "idle"); done && done(); };
+  speechSynthesis.speak(u);
+}
+const rec = { r: null, on: false };
+function browserListen(lang, onText, once) {
+  if (!SR) { addMsg("sys", "This browser can't listen. Use Chrome, or type below."); return; }
+  browserStopListen();
+  const r = new SR(); r.lang = BCP[lang] || "en-IN"; r.interimResults = false; r.continuous = !once;
+  r.onresult = (e) => { const t = [...e.results].slice(e.resultIndex).filter((x) => x.isFinal).map((x) => x[0].transcript).join(" ").trim(); if (t) onText(t); };
+  r.onend = () => { if (rec.on && !once && rec.r === r) try { r.start(); } catch (_) {} };
+  rec.r = r; rec.on = true; try { r.start(); } catch (_) {}
+}
+function browserStopListen() { rec.on = false; try { rec.r && rec.r.stop(); } catch (_) {} rec.r = null; }
+
 // ---------------- "one moment" fillers (instant, cached) ----------------
 const fillers = {};
 async function loadFillers(lang) {
@@ -177,9 +203,13 @@ async function startCall() {
   $("#mic").classList.remove("hidden"); $("#typeform").classList.remove("hidden");
   addMsg("agent", r.reply, r.lang);
   mic.onAudio = (blob) => sendTurn({ audio: blob });
-  const ok = status.keys.sarvam && await openMic();
-  if (!status.keys.sarvam) addMsg("sys", "Voice is off (SARVAM_API_KEY not set). Type below to talk to the agent.");
-  if (r.audio?.length) playClips(r.audio, r.rest, r.lang); else setState(ok ? "listening" : "idle");
+  let ok = false;
+  if (browserVoice()) {
+    addMsg("sys", "Using your browser's built-in voice (the voice service is unavailable). Just talk.");
+    browserListen(call.lang, (t) => { if (!player.playing) sendTurn({ text: t }); else { speechSynthesis.cancel(); sendTurn({ text: t }); } });
+    ok = true;
+  } else ok = await openMic();
+  if (r.audio?.length) playClips(r.audio, r.rest, r.lang); else if (browserVoice()) browserSpeak(r.reply, r.lang); else setState(ok ? "listening" : "idle");
 }
 async function sendTurn(data) {
   if (!call.session || mic.busy) return;
@@ -195,12 +225,13 @@ async function sendTurn(data) {
   const t = r.timing || {};
   addMsg("agent", r.reply, `${r.lang} · ${t.listen ?? 0}s listen · ${t.think ?? 0}s think · ${t.speak ?? 0}s voice`);
   addActions(r.actions);
-  if (r.audio?.length) playClips(r.audio, r.rest, r.lang); else setState("listening");
+  if (r.audio?.length) playClips(r.audio, r.rest, r.lang); else if (browserVoice()) browserSpeak(r.reply, r.lang); else setState("listening");
   refresh();
   if (r.ended) setTimeout(endCall, 4000);
 }
 $("#typeform").onsubmit = (e) => { e.preventDefault(); const t = $("#typed").value.trim(); if (t) { $("#typed").value = ""; stopPlayback(); sendTurn({ text: t }); } };
 async function endCall() {
+  browserStopListen(); if (window.speechSynthesis) speechSynthesis.cancel();
   if (call.session) await api("/api/call/end", { session: call.session });
   call.session = null; stopPlayback(); closeMic();
   $("#startbtn").classList.remove("hidden"); $("#endbtn").classList.add("hidden");
@@ -219,7 +250,7 @@ async function refreshService() {
   if (!$("#btype").options.length) $("#btype").innerHTML = Object.entries(o.templates).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
   $("#btype").value = S.type;
   $("#schedcard").classList.toggle("hidden", !F.bookings);
-  $("#active").checked = S.active !== false; $("#announce").checked = S.announce_ai !== false;
+  $("#active").checked = S.active !== false; $("#announce").checked = S.announce_ai === true;
   $("#bookings").innerHTML = table(["When", "Customer", "Mobile", "Problem / details"], (o.bookings || []).map((b) =>
     [esc(fmtDay(b.start.slice(0, 10)) + " " + b.start.slice(11)), esc(b.name), esc(b.phone), esc(b.purpose)]), true);
   $("#schedtitle").innerHTML = `Schedule <small class="muted">· ${esc(W.booking)}s</small>`;
@@ -310,12 +341,12 @@ async function setupTurn(data) {
   if (data.audio) setupMsg("user", r.heard);
   setupMsg("assistant", r.reply);
   if (r.changes?.length) { const d = document.createElement("div"); d.className = "msg sys"; d.textContent = "✓ settings updated"; $("#setupchat").appendChild(d); }
-  if (r.audio?.length) playClips(r.audio, r.rest, r.lang);
+  playClips(r.audio, r.rest, r.lang, r.reply);
   settingsKey = ""; await refresh(); fillCallers();
   if (r.done) $("#democall").classList.add("pulse");
 }
 $("#setupform").onsubmit = (e) => { e.preventDefault(); const t = $("#setuptext").value.trim(); if (t) { $("#setuptext").value = ""; setupTurn({ text: t }); } };
-holdToSpeak($("#setupmic"), (blob) => setupTurn({ audio: blob }), "#setupchat");
+holdToSpeak($("#setupmic"), (blob) => setupTurn({ audio: blob }), "#setupchat", (t) => setupTurn({ text: t }));
 $("#setupreset").onclick = async () => { await api("/api/setup/reset", {}); loadSetup(); };
 $("#democall").onclick = () => { $("#democall").classList.remove("pulse"); $("#caller").value = "9000011111"; window.scrollTo({ top: 0, behavior: "smooth" }); startCall(); };
 $("#active").onchange = () => api("/api/service/settings", { data: JSON.stringify({ active: $("#active").checked }) });
@@ -351,11 +382,11 @@ async function cdescribe(data) {
   if (r.error) { $("#cdescout").textContent = "⚠️ " + r.error; return; }
   $("#cdescout").innerHTML = `Heard: “${esc(r.heard)}”<br>✅ ${esc(r.profile.name)}. 🗣️ ${esc(r.readback)}` +
     (r.rules.length ? ` <b>${r.rules.length} rule(s) proposed below: approve them to use.</b>` : "");
-  if (r.audio?.length) playClips(r.audio, r.rest, r.lang);
+  playClips(r.audio, r.rest, r.lang, r.readback);
   refresh();
 }
 $("#cdescform").onsubmit = (e) => { e.preventDefault(); const t = $("#cdesctext").value.trim(); if (t) { $("#cdesctext").value = ""; cdescribe({ text: t }); } };
-holdToSpeak($("#cdescmic"), (blob) => cdescribe({ audio: blob }), "#cdescout");
+holdToSpeak($("#cdescmic"), (blob) => cdescribe({ audio: blob }), "#cdescout", (t) => cdescribe({ text: t }));
 $("#connform").onsubmit = async (e) => {
   e.preventDefault(); $("#connstatus").textContent = "Reading your dashboard…";
   const r = await api("/api/connect", Object.fromEntries(new FormData(e.target)));
@@ -366,13 +397,20 @@ async function teach(data) {
   const r = await api("/api/teach", { lang: $("#lang").value, ...data });
   if (r.error) { $("#teachout").textContent = "⚠️ " + r.error; return; }
   $("#teachout").innerHTML = `Heard: “${esc(r.heard)}”<br>🗣️ ${esc(r.readback)} <b>Approve the rules below to use them.</b>`;
-  if (r.audio?.length) playClips(r.audio, r.rest, r.lang);
+  playClips(r.audio, r.rest, r.lang, r.readback);
   refresh();
 }
 $("#teachform").onsubmit = (e) => { e.preventDefault(); const t = $("#teachtext").value.trim(); if (t) { $("#teachtext").value = ""; teach({ text: t }); } };
-function holdToSpeak(btn, onBlob, outSel) {
+function holdToSpeak(btn, onBlob, outSel, onText) {
   btn.onpointerdown = async (e) => {
     e.preventDefault();
+    if (browserVoice() && onText) {
+      btn.classList.add("down"); let said = "";
+      browserListen($("#lang").value, (t) => { said += " " + t; }, true);
+      btn.onpointerup = btn.onpointerleave = () => { if (!btn.classList.contains("down")) return; btn.classList.remove("down");
+        setTimeout(() => { browserStopListen(); if (said.trim()) onText(said.trim()); }, 600); };
+      return;
+    }
     if (!status.keys.sarvam) { $(outSel).textContent = "Voice is off (SARVAM_API_KEY not set). Type instead."; return; }
     if (call.session) { $(outSel).textContent = "End the call first."; return; }
     if (!(await openMic())) return;
@@ -380,7 +418,7 @@ function holdToSpeak(btn, onBlob, outSel) {
   };
   btn.onpointerup = btn.onpointerleave = () => { if (btn.classList.contains("down")) { btn.classList.remove("down"); stopRec(); } };
 }
-holdToSpeak($("#teachmic"), (blob) => teach({ audio: blob }), "#teachout");
+holdToSpeak($("#teachmic"), (blob) => teach({ audio: blob }), "#teachout", (t) => teach({ text: t }));
 
 // ---------------- boot ----------------
 async function refresh() {
@@ -393,6 +431,11 @@ async function refresh() {
   status = await api("/api/status");
   $("#lang").innerHTML = Object.entries(status.languages).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
   $("#demolink").href = status.demo_dashboard_url;
+  if (status.keys.sarvam && !status.voice_service) {
+    $("#keybanner").textContent = `🔊 Voice service unavailable (${status.voice_service_problem || "Sarvam"}). Using your browser's built-in voice instead. ` +
+      "Top up Sarvam credits for natural Indian voices.";
+    $("#keybanner").classList.remove("hidden");
+  }
   const missing = Object.entries(status.keys).filter(([, v]) => !v).map(([k]) => k.toUpperCase() + "_API_KEY");
   if (missing.length) {
     $("#keybanner").textContent = `🔑 Key not set: ${missing.join(", ")}. The app works, but ` +
@@ -400,5 +443,12 @@ async function refresh() {
     $("#keybanner").classList.remove("hidden");
   }
   switchTab("service"); loadSetup();
+  $("#voicepick").innerHTML = Object.entries(status.languages).map(([k, n]) => `<label style="flex:0 1 160px">${n} voice
+    <select data-vl="${k}"><option value="">Default</option>${status.voices.map((v) => `<option ${status.chosen_voices[k] === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>`).join("");
+  document.querySelectorAll("[data-vl]").forEach((sel) => sel.onchange = async () => {
+    await api("/api/voices", { lang: sel.dataset.vl, voice: sel.value }); delete fillers[sel.dataset.vl]; loadFillers(sel.dataset.vl);
+    const r = await api("/api/tts", { text: { kn: "ನಮಸ್ಕಾರ, ಹೇಳಿ ಸಾರ್.", hi: "नमस्ते जी, बताइए.", te: "నమస్కారం అండి, చెప్పండి.", en: "Hi, how can I help?" }[sel.dataset.vl], lang: sel.dataset.vl });
+    if (r.audio) new Audio("data:audio/wav;base64," + r.audio).play();
+  });
   setInterval(() => { if (!call.session) refresh(); }, 5000);
 })();

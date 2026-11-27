@@ -267,7 +267,6 @@ def book_slot(name: str, purpose: str, date: str, time: str, phone: str) -> dict
     day = "today" if d == datetime.date.today() else "tomorrow" if d == datetime.date.today() + datetime.timedelta(1) else f"{d:%A %d %B}"
     spoken = f"{day}, {spoken_time(time)} to {spoken_time(end.strftime('%H:%M') if end.date() == d else '24:00')}"
     return {"booked": True, "booking_id": f"B{aid}", "when": f"{d:%A %d %B}, {time} to {end:%H:%M}",
-            "sms": "confirmation SMS sent to caller",
             "say": f"Tell the caller clearly, in their language: booked for {spoken}."}
 
 
@@ -357,7 +356,7 @@ def place_order(items: str, fulfilment: str, total_rupees: str = "", address: st
            (oid, phone, name or "Caller", items, detail, "New order", _num(total_rupees),
             datetime.date.today().isoformat()))
     db.notify("service", f"New order {oid}: {items} ({detail})")
-    return {"order_id": oid, "status": "placed", "sms": "order details sent to caller by SMS"}
+    return {"order_id": oid, "status": "placed"}
 
 
 def my_records(phone: str, record_id: str = "") -> dict:

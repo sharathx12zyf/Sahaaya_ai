@@ -44,3 +44,35 @@ def require_keys(voice: bool = False):
         raise KeyNotSet("SARVAM_API_KEY not set: voice features are disabled. Add it to .env and restart.")
     if not (s["sarvam"] or s["nvidia"]):
         raise KeyNotSet("AI key not set (SARVAM_API_KEY or NVIDIA_API_KEY). Add one to .env and restart.")
+
+
+# ---- is the voice service actually usable (credits left)? checked at most every 5 minutes ----
+_VOICE = {"ok": None, "at": 0.0, "why": ""}
+
+
+def voice_service_ok(force: bool = False) -> bool:
+    import requests
+    if not os.environ.get("SARVAM_API_KEY"):
+        _VOICE.update(ok=False, why="SARVAM_API_KEY not set")
+        return False
+    if not force and _VOICE["ok"] is not None and time.time() - _VOICE["at"] < 300:
+        return _VOICE["ok"]
+    try:
+        r = requests.post("https://api.sarvam.ai/text-to-speech", timeout=15,
+                          headers={"api-subscription-key": os.environ["SARVAM_API_KEY"]},
+                          json={"text": "ok", "target_language_code": "en-IN"})
+        ok = r.status_code == 200
+        why = "" if ok else (r.json().get("error", {}).get("message", f"HTTP {r.status_code}") if r.headers.get(
+            "content-type", "").startswith("application/json") else f"HTTP {r.status_code}")
+    except Exception as e:
+        ok, why = False, e.__class__.__name__
+    _VOICE.update(ok=ok, at=time.time(), why=why)
+    return ok
+
+
+def voice_service_reason() -> str:
+    return _VOICE["why"]
+
+
+def mark_voice_down(why: str):
+    _VOICE.update(ok=False, at=time.time(), why=why)

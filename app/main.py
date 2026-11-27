@@ -17,7 +17,7 @@ from .ai import speech
 from .ai.agent import Agent
 from .ai.languages import GREETINGS, NAMES, detect_romanized, detect_script_language
 from . import setup_assistant
-from .config import KeyNotSet, key_status, require_keys
+from .config import KeyNotSet, key_status, mark_voice_down, require_keys, voice_service_ok, voice_service_reason
 from .connect import core as connect
 from .service_center import core as service
 from .service_center.templates import TEMPLATES
@@ -49,14 +49,14 @@ def _startup():
 
 
 GREET = {
-    "kn": ("ನಮಸ್ಕಾರ, {biz}. ನಾನು {agent}{ai}. ಹೇಳಿ, ಏನು ಸಹಾಯ ಬೇಕು?", ", AI ಸಹಾಯಕಿ"),
-    "hi": ("नमस्ते, {biz}. मैं {agent} बोल रही हूँ{ai}. बताइए, क्या मदद करूँ?", ", AI सहायक"),
-    "te": ("నమస్కారం, {biz}. నేను {agent}{ai}. చెప్పండి, ఏం సహాయం కావాలి?", ", AI సహాయకురాలు"),
-    "en": ("Hello, {biz}. This is {agent}{ai}. How can I help you?", ", an AI assistant"),
+    "kn": ("ನಮಸ್ಕಾರ, {biz}, ನಾನು {agent}{ai} ಮಾತಾಡ್ತಿರೋದು. ಹೇಳಿ.", ", AI ಸಹಾಯಕಿ"),
+    "hi": ("नमस्ते, {biz} से मैं {agent}{ai} बोल रही हूँ. बताइए?", ", AI सहायक"),
+    "te": ("నమస్కారం, {biz} నుంచి {agent}{ai} మాట్లాడుతున్నాను. చెప్పండి.", ", AI సహాయకురాలు"),
+    "en": ("Hi, this is {agent}{ai} from {biz}. How can I help?", ", an AI assistant,"),
 }
 
 
-def greeting(lang, biz, agent, announce_ai=True):
+def greeting(lang, biz, agent, announce_ai=False):
     tpl, ai = GREET.get(lang, GREET["en"])
     return tpl.format(biz=biz, agent=agent, ai=ai if announce_ai else "")
 
@@ -70,9 +70,22 @@ def index():
     return FileResponse(os.path.join(STATIC, "index.html"))
 
 
+@app.post("/api/voices")
+def set_voice(lang: str = Form(...), voice: str = Form("")):
+    v = db.get("voices") or {}
+    if voice in VOICES:
+        v[lang] = voice
+    else:
+        v.pop(lang, None)
+    db.put("voices", v)
+    return {"ok": True, "voices": v}
+
+
 @app.get("/api/status")
 def status():
-    return {"keys": key_status(), "languages": {k: NAMES[k] for k in LANGS},
+    return {"keys": key_status(), "languages": {k: NAMES[k] for k in LANGS}, "voices": VOICES,
+            "chosen_voices": db.get("voices") or {},
+            "voice_service": voice_service_ok(force=True), "voice_service_problem": voice_service_reason(),
             "demo_dashboard_url": os.environ.get("DEMO_DASHBOARD_PUBLIC_URL", "http://localhost:9000")}
 
 
@@ -81,22 +94,31 @@ def _sentences(t):
     return [p for p in re.split(r"(?<=[.!?।])\s+", t.strip()) if p] or [t]
 
 
+VOICES = ["priya", "kavya", "neha", "shreya", "ritu", "roopa", "kavitha", "simran"]
+
+
+def speaker(lang: str) -> str | None:
+    """The owner's chosen voice for this language (Settings), else Sarvam's default voice."""
+    return (db.get("voices") or {}).get(lang)
+
+
 def voice_clips(text: str, lang: str) -> list[str]:
     """Voice for the FIRST sentence only (so the caller hears it fast); the browser fetches the
     rest in parallel from /api/tts while the first one plays."""
-    if not key_status()["sarvam"]:
-        return []
+    if not voice_service_ok():
+        return []          # the browser then speaks with its own built-in voice
     try:
-        return [base64.b64encode(speech.speak(_sentences(text)[0], lang)).decode()]
-    except Exception:
+        return [base64.b64encode(speech.speak(_sentences(text)[0], lang, speaker(lang))).decode()]
+    except Exception as e:
+        mark_voice_down(str(e)[:80])
         return []
 
 
 FILLERS = {
-    "kn": ["ಸರಿ, ಒಂದು ನಿಮಿಷ.", "ಹಾ, ನೋಡ್ತೀನಿ.", "ಓಕೆ, ಚೆಕ್ ಮಾಡ್ತೀನಿ."],
-    "hi": ["जी, एक मिनट।", "अच्छा, देखती हूँ।", "ठीक है, चेक करती हूँ।"],
-    "te": ["సరే, ఒక్క నిమిషం.", "అలాగే, చూస్తాను.", "ఓకే, చెక్ చేస్తాను."],
-    "en": ["Sure, one moment.", "Okay, let me check.", "Alright, just a second."],
+    "kn": ["ಹಾ, ಒಂದ್ ನಿಮಿಷ.", "ಸರಿ, ನೋಡ್ತೀನಿ.", "ಓಕೆ ಓಕೆ."],
+    "hi": ["जी, एक मिनट.", "अच्छा, देखती हूँ.", "हाँ जी."],
+    "te": ["ఆ, ఒక్క నిమిషం అండి.", "సరే, చూస్తాను.", "అలాగే."],
+    "en": ["Sure, one sec.", "Okay, let me see.", "Mm-hmm."],
 }
 
 
@@ -106,13 +128,13 @@ def filler(lang: str = "en", i: int = 0):
     talking, so there is no dead silence while the agent thinks."""
     lang = lang if lang in FILLERS else "en"
     i = i % len(FILLERS[lang])
-    path = os.path.join(db.DATA_DIR if hasattr(db, "DATA_DIR") else ".", f"filler_{lang}_{i}.b64")
+    path = os.path.join(db.DATA_DIR if hasattr(db, "DATA_DIR") else ".", f"filler_{lang}_{i}_{speaker(lang) or 'default'}.b64")
     if os.path.exists(path):
         return {"audio": open(path).read()}
-    if not key_status()["sarvam"]:
+    if not voice_service_ok():
         return {"audio": None}
     try:
-        a = base64.b64encode(speech.speak(FILLERS[lang][i], lang)).decode()
+        a = base64.b64encode(speech.speak(FILLERS[lang][i], lang, speaker(lang))).decode()
         open(path, "w").write(a)
         return {"audio": a}
     except Exception:
@@ -122,7 +144,7 @@ def filler(lang: str = "en", i: int = 0):
 @app.post("/api/tts")
 def tts(text: str = Form(...), lang: str = Form("en")):
     try:
-        return {"audio": base64.b64encode(speech.speak(text, lang)).decode()}
+        return {"audio": base64.b64encode(speech.speak(text, lang, speaker(lang))).decode()}
     except Exception as e:
         return err(e)
 
@@ -151,7 +173,7 @@ def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Fo
             return err(Exception("The agent is paused. Switch it to Active in the Service Center tab."))
         agent = Agent(service.persona(), service.tools(caller), caller, turn_rules=service.turn_rules(), expose_caller=False)
         lang = lang or cfg.get("default_language", "kn")
-        greet = greeting(lang, cfg["name"], cfg["agent_name"], cfg.get("announce_ai", True))
+        greet = greeting(lang, cfg["name"], cfg["agent_name"], cfg.get("announce_ai", False))
     else:
         conn = connect.connection()
         if not conn:
@@ -160,7 +182,7 @@ def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Fo
         known = connect.prefetch(caller, {t.name: t for t in tools})
         agent = Agent(connect.persona() + "\n" + known, tools, caller, turn_rules=connect.turn_rules())
         p = connect.profile()
-        greet = greeting(lang, p["name"] + " support", p["agent_name"], p.get("announce_ai", True))
+        greet = greeting(lang, p["name"] + " support", p["agent_name"], p.get("announce_ai", False))
     agent.say_first(greet)
     sid = uuid.uuid4().hex[:12]
     CALLS[sid] = {"section": section, "agent": agent, "lang": lang, "caller": caller, "misheard": 0,

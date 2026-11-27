@@ -64,9 +64,12 @@
       <div class="row wrap">
         <button id="democall" class="primary">📞 Demo call (test it)</button>
         <label class="switch"><input type="checkbox" id="active" checked> Agent active (answers calls)</label>
-        <label class="switch"><input type="checkbox" id="announce" checked> Say “AI assistant” in the greeting</label>
+        <label class="switch"><input type="checkbox" id="announce"> Say “AI assistant” in the greeting</label>
         <button id="setupreset" title="Clear the setup conversation">Start over</button>
         <label style="flex:0 1 220px">Quick start from a type<select id="btype"></select></label>
+      </div>
+      <div class="row wrap" id="voicepick"></div>
+      <div class="row wrap" style="display:none">
       </div>
       <p class="muted" style="font-size:12px">If a caller sincerely asks whether they're talking to a person, the agent always answers honestly.</p>
     </div>

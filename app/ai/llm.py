@@ -20,10 +20,15 @@ PROVIDERS = {
 }
 
 
+_DOWN: dict[str, float] = {}
+
+
 class LLM:
     def __init__(self, order=None, timeout=15, models=None):
         from ..config import llm_order
         self.order = [p for p in (order or llm_order()) if p in PROVIDERS]
+        # a provider with no credits left (402) is skipped for 10 minutes instead of being retried every turn
+        self.order = [p for p in self.order if time.time() - _DOWN.get(p, 0) > 600] or self.order
         self.timeout = timeout
         self.models = models or {}
         self.last_provider = None
@@ -43,6 +48,8 @@ class LLM:
                     r = requests.post(p["url"], headers=p["headers"](), json=body, timeout=self.timeout)
                     if r.status_code != 429:
                         break
+                if r.status_code == 402:
+                    _DOWN[name] = time.time()
                 r.raise_for_status()
                 msg = r.json()["choices"][0]["message"]
                 if not msg.get("content") and not msg.get("tool_calls"):
