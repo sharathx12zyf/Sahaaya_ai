@@ -1,0 +1,16 @@
+{
+  "name": "Sahaaya AI",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install -r requirements.txt",
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "forwardPorts": [8000, 9000],
+  "portsAttributes": {
+    "8000": {"label": "Sahaaya app", "onAutoForward": "openBrowser"},
+    "9000": {"label": "QuickKart company dashboard", "onAutoForward": "silent"}
+  },
+  "secrets": {
+    "SARVAM_API_KEY": {"description": "Sarvam AI key (voices, speech recognition, AI brain): dashboard.sarvam.ai"},
+    "NVIDIA_API_KEY": {"description": "Optional backup AI brain: build.nvidia.com"}
+  },
+  "containerEnv": {"TZ": "Asia/Kolkata"}
+}

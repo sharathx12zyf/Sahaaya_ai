@@ -24,6 +24,13 @@ owner's language, and uses them only after the owner approves.
 More: [teach the agent by voice](docs/screenshots/2-teach-agent-by-voice.png) · [phone view](docs/screenshots/6-phone-view.png) ·
 [pitch deck](docs/Sahaaya-AI-pitch-deck.pdf) · [accuracy results](eval/RESULTS.md)
 
+## Run it in the browser with GitHub Codespaces (nothing to install)
+1. On GitHub: **Settings → Codespaces → Secrets** → add `SARVAM_API_KEY` (and optionally `NVIDIA_API_KEY`),
+   and allow this repository.
+2. Open this repository → **Code → Codespaces → Create codespace on this branch**.
+3. Wait about 2 minutes. Both servers start by themselves. Open the **PORTS** tab: **8000** = Sahaaya,
+   **9000** = the company dashboard (click the globe icon to open).
+
 ## Run it (one command)
 
 ```bash
