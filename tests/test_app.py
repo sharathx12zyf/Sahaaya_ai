@@ -54,7 +54,9 @@ def test_booking_flow_and_double_booking():
     again = service.book_slot("Other", "Phone", day, slot, "9000022222")
     assert again["booked"] is False                                                           # no double booking
     assert service.my_bookings("9000011111")["bookings"]
-    assert service.cancel_booking(r["booking_id"], "9000022222")["cancelled"] is False       # not their booking
+    bid = service.my_bookings("9000011111")["bookings"][0]["booking_id"]
+    assert service.cancel_booking(bid, "9000022222")["cancelled"] is False                    # not their booking
+    assert service.cancel_booking(bid, "9000011111")["cancelled"] is True
 
 
 def test_records_only_own():
