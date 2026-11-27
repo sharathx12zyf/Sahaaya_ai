@@ -13,6 +13,17 @@ In Dashboard Connect the owner **teaches the agent by speaking, in any language*
 ("ಯಾರಾದರೂ KYC ಬಗ್ಗೆ ಕೇಳಿದರೆ… recheck ಮಾಡಿ"). Sahaaya turns it into clear rules, reads them back in the
 owner's language, and uses them only after the owner approves.
 
+## Screenshots
+
+| Service Center: booking by voice in Kannada | Dashboard Connect: KYC fixed in Hindi |
+|---|---|
+| ![Booking](docs/screenshots/1-service-center-booking.png) | ![KYC](docs/screenshots/3-dashboard-connect-kyc-fixed.png) |
+| **Company dashboard after the agent acted** | **Stranger can't see others' data** |
+| ![Dashboard](docs/screenshots/4-company-dashboard-after.png) | ![Privacy](docs/screenshots/5-privacy-stranger-blocked.png) |
+
+More: [teach the agent by voice](docs/screenshots/2-teach-agent-by-voice.png) · [phone view](docs/screenshots/6-phone-view.png) ·
+[pitch deck](docs/Sahaaya-AI-pitch-deck.pdf) · [accuracy results](eval/RESULTS.md)
+
 ## Run it (one command)
 
 ```bash
