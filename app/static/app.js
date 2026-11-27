@@ -443,8 +443,16 @@ async function refresh() {
     $("#keybanner").classList.remove("hidden");
   }
   switchTab("service"); loadSetup();
-  $("#voicepick").innerHTML = Object.entries(status.languages).map(([k, n]) => `<label style="flex:0 1 160px">${n} voice
+  $("#voicepick").innerHTML = Object.entries(status.languages).map(([k, n]) => `<label style="flex:0 1 170px">${n} engine
+    <select data-vp="${k}"><option value="bhashini" ${status.voice_providers[k] === "bhashini" ? "selected" : ""} ${status.bhashini ? "" : "disabled"}>Bhashini${status.bhashini ? "" : " (key not set)"}</option>
+    <option value="sarvam" ${status.voice_providers[k] === "sarvam" ? "selected" : ""}>Sarvam</option></select></label>
+    <label style="flex:0 1 150px">${n} Sarvam voice
     <select data-vl="${k}"><option value="">Default</option>${status.voices.map((v) => `<option ${status.chosen_voices[k] === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>`).join("");
+  document.querySelectorAll("[data-vp]").forEach((sel) => sel.onchange = async () => {
+    await api("/api/voice-provider", { lang: sel.dataset.vp, provider: sel.value }); delete fillers[sel.dataset.vp]; loadFillers(sel.dataset.vp);
+    const r = await api("/api/tts", { text: { kn: "ನಮಸ್ಕಾರ, ಹೇಳಿ ಸಾರ್.", hi: "नमस्ते जी, बताइए.", te: "నమస్కారం అండి, చెప్పండి.", en: "Hi, how can I help?" }[sel.dataset.vp], lang: sel.dataset.vp });
+    if (r.audio) new Audio("data:audio/wav;base64," + r.audio).play();
+  });
   document.querySelectorAll("[data-vl]").forEach((sel) => sel.onchange = async () => {
     await api("/api/voices", { lang: sel.dataset.vl, voice: sel.value }); delete fillers[sel.dataset.vl]; loadFillers(sel.dataset.vl);
     const r = await api("/api/tts", { text: { kn: "ನಮಸ್ಕಾರ, ಹೇಳಿ ಸಾರ್.", hi: "नमस्ते जी, बताइए.", te: "నమస్కారం అండి, చెప్పండి.", en: "Hi, how can I help?" }[sel.dataset.vl], lang: sel.dataset.vl });

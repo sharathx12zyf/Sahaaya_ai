@@ -80,8 +80,31 @@ def transcribe(audio: bytes, hint: str | None = None) -> dict:
             "confidence": j.get("language_probability")}
 
 
-def speak(text: str, lang: str, speaker: str | None = None, rate: int = 22050) -> bytes:
-    """Returns WAV bytes in a natural Indian voice."""
+# Which voice engine each language uses. Default: Bhashini for Kannada/Hindi/Telugu when its keys are set
+# (sounds most natural there), Sarvam for English. Owners can change it per language in Settings.
+DEFAULT_PROVIDER = {"kn": "bhashini", "hi": "bhashini", "te": "bhashini", "en": "sarvam"}
+
+
+def provider_for(lang: str, chosen: dict | None = None) -> str:
+    from . import bhashini
+    p = (chosen or {}).get(lang) or DEFAULT_PROVIDER.get(lang, "sarvam")
+    if p == "bhashini" and not bhashini.available():
+        return "sarvam"
+    return p
+
+
+def speak(text: str, lang: str, speaker: str | None = None, rate: int = 22050, provider: str | None = None) -> bytes:
+    """Returns WAV bytes in a natural Indian voice (Bhashini or Sarvam; if one fails, the other is tried)."""
+    from . import bhashini
+    if provider == "bhashini" and bhashini.available():
+        try:
+            return bhashini.speak(text, lang)
+        except Exception:
+            pass                      # fall back to Sarvam
+    return _sarvam_speak(text, lang, speaker, rate)
+
+
+def _sarvam_speak(text: str, lang: str, speaker: str | None = None, rate: int = 22050) -> bytes:
     body = {"text": text[:1500], "target_language_code": SARVAM_LANG.get(lang, "en-IN"),
             "speech_sample_rate": rate}
     if speaker:

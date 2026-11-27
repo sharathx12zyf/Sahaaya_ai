@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import db
-from .ai import speech
+from .ai import bhashini, speech
 from .ai.agent import Agent
 from .ai.languages import GREETINGS, NAMES, detect_romanized, detect_script_language
 from . import setup_assistant
@@ -70,6 +70,15 @@ def index():
     return FileResponse(os.path.join(STATIC, "index.html"))
 
 
+@app.post("/api/voice-provider")
+def set_voice_provider(lang: str = Form(...), provider: str = Form(...)):
+    v = db.get("voice_providers") or {}
+    if provider in ("sarvam", "bhashini"):
+        v[lang] = provider
+    db.put("voice_providers", v)
+    return {"ok": True, "providers": {l: speech.provider_for(l, v) for l in LANGS}}
+
+
 @app.post("/api/voices")
 def set_voice(lang: str = Form(...), voice: str = Form("")):
     v = db.get("voices") or {}
@@ -85,6 +94,8 @@ def set_voice(lang: str = Form(...), voice: str = Form("")):
 def status():
     return {"keys": key_status(), "languages": {k: NAMES[k] for k in LANGS}, "voices": VOICES,
             "chosen_voices": db.get("voices") or {},
+            "voice_providers": {l: speech.provider_for(l, db.get("voice_providers")) for l in LANGS},
+            "bhashini": bhashini.available(),
             "voice_service": voice_service_ok(force=True), "voice_service_problem": voice_service_reason(),
             "demo_dashboard_url": os.environ.get("DEMO_DASHBOARD_PUBLIC_URL", "http://localhost:9000")}
 
@@ -98,8 +109,13 @@ VOICES = ["priya", "kavya", "neha", "shreya", "ritu", "roopa", "kavitha", "simra
 
 
 def speaker(lang: str) -> str | None:
-    """The owner's chosen voice for this language (Settings), else Sarvam's default voice."""
+    """The owner's chosen Sarvam voice for this language (Settings), else Sarvam's default voice."""
     return (db.get("voices") or {}).get(lang)
+
+
+def say(text: str, lang: str) -> bytes:
+    """Speak with the engine chosen for this language (Bhashini or Sarvam)."""
+    return speech.speak(text, lang, speaker(lang), provider=speech.provider_for(lang, db.get("voice_providers")))
 
 
 def voice_clips(text: str, lang: str) -> list[str]:
@@ -108,7 +124,7 @@ def voice_clips(text: str, lang: str) -> list[str]:
     if not voice_service_ok():
         return []          # the browser then speaks with its own built-in voice
     try:
-        return [base64.b64encode(speech.speak(_sentences(text)[0], lang, speaker(lang))).decode()]
+        return [base64.b64encode(say(_sentences(text)[0], lang)).decode()]
     except Exception as e:
         mark_voice_down(str(e)[:80])
         return []
@@ -128,13 +144,13 @@ def filler(lang: str = "en", i: int = 0):
     talking, so there is no dead silence while the agent thinks."""
     lang = lang if lang in FILLERS else "en"
     i = i % len(FILLERS[lang])
-    path = os.path.join(db.DATA_DIR if hasattr(db, "DATA_DIR") else ".", f"filler_{lang}_{i}_{speaker(lang) or 'default'}.b64")
+    path = os.path.join(db.DATA_DIR if hasattr(db, "DATA_DIR") else ".", f"filler_{lang}_{i}_{speech.provider_for(lang, db.get('voice_providers'))}_{speaker(lang) or 'default'}.b64")
     if os.path.exists(path):
         return {"audio": open(path).read()}
     if not voice_service_ok():
         return {"audio": None}
     try:
-        a = base64.b64encode(speech.speak(FILLERS[lang][i], lang, speaker(lang))).decode()
+        a = base64.b64encode(say(FILLERS[lang][i], lang)).decode()
         open(path, "w").write(a)
         return {"audio": a}
     except Exception:
@@ -144,7 +160,7 @@ def filler(lang: str = "en", i: int = 0):
 @app.post("/api/tts")
 def tts(text: str = Form(...), lang: str = Form("en")):
     try:
-        return {"audio": base64.b64encode(speech.speak(text, lang, speaker(lang))).decode()}
+        return {"audio": base64.b64encode(say(text, lang)).decode()}
     except Exception as e:
         return err(e)
 
