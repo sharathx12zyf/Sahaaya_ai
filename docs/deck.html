@@ -1,0 +1,121 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Sahaaya AI – Pitch Deck</title>
+<style>
+@page{size:1280px 720px;margin:0}
+body{margin:0;font-family:"Noto Sans","Noto Sans Kannada","Noto Sans Devanagari",system-ui,sans-serif;color:#1c2130}
+.s{width:1280px;height:720px;box-sizing:border-box;padding:56px 72px;page-break-after:always;position:relative;background:#fff}
+.s:nth-child(odd){background:#f7f6ff}
+h1{font-size:64px;margin:0 0 10px;color:#4b2fe0}h2{font-size:38px;margin:0 0 22px;color:#4b2fe0}
+p,li{font-size:22px;line-height:1.45}li{margin:6px 0}
+.big{font-size:30px;line-height:1.4}.muted{color:#5e6680}
+table{border-collapse:collapse;width:100%;font-size:19px}td,th{border-bottom:1px solid #dcdcf0;padding:9px 10px;text-align:left;vertical-align:top}
+th{background:#ece9ff}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:36px}
+.box{background:#fff;border:2px solid #e2ddff;border-radius:16px;padding:18px 22px}
+.n{position:absolute;bottom:22px;right:36px;font-size:14px;color:#8a90a8}
+.flow{font-size:21px;line-height:1.7}
+b{color:#2b1aa8}
+</style></head><body>
+
+<div class="s"><h1>Sahaaya AI</h1>
+<p class="big">A voice AI agent that answers every customer call <b>in their own language</b>, checks the business's
+real data, and gets the job done. It books the slot, fixes the KYC, or raises the ticket.</p>
+<p class="big muted">For small shops to large companies. Callers need no app and no internet, just their voice.</p>
+<p>Kannada · Hindi · Telugu · Tamil · English · Kanglish · Hinglish</p>
+<p class="muted">Scaler × Wispr Flow "India Runs on Voice" hackathon · Round 2 prototype</p><div class="n">1</div></div>
+
+<div class="s"><h2>The problem</h2>
+<ul>
+<li><b>Small businesses miss calls every day.</b> A phone repair shop owner is busy with customers, has no receptionist,
+and nobody answers after hours. Every missed call is a lost customer.</li>
+<li><b>Customer care speaks the wrong language.</b> "Press 1 for English" fails a Kannada-speaking elder or a Telugu-speaking
+worker. Most callers would rather <b>speak</b> their own language than type in an app.</li>
+<li><b>Simple problems take days.</b> "Why is my order on hold?" → "KYC pending" → nobody tells the customer the PAN photo
+was blurry. Support staff must open dashboards, search and explain every single time.</li>
+<li><b>Big call centres are costly</b>, and they still can't cover every Indian language 24×7.</li>
+</ul><div class="n">2</div></div>
+
+<div class="s"><h2>The solution: one voice agent, two ways to use it</h2>
+<div class="two">
+<div class="box"><h3 style="font-size:26px;margin:0 0 8px">📞 Service Center</h3>
+<p>For shops and service centres with no software.</p>
+<p>"ನನ್ನ phone screen ಒಡೆದಿದೆ, ನಾಳೆ ಬರಬಹುದಾ?" ("My screen broke, can I come tomorrow?")<br>→ tells the price → <b>checks the owner's schedule</b> → offers 3 free slots → reads back the details → <b>books Sat 11:00–11:30</b>
+→ the booking appears on the owner's dashboard.</p>
+<p>Also answers "is my phone ready?" from the repair list.</p></div>
+<div class="box"><h3 style="font-size:26px;margin:0 0 8px">🔗 Dashboard Connect</h3>
+<p>For companies that already have a dashboard.</p>
+<p>"मेरा order hold पर क्यों है?" ("Why is my order on hold?")<br>→ finds the caller's account → KYC pending, documents fine → "Shall I re-check?" → <b>re-runs KYC on the company
+dashboard → order released</b>.<br>Blurry photo? → sends the upload link and guides step by step.</p></div>
+</div><div class="n">3</div></div>
+
+<div class="s"><h2>Why voice comes first</h2>
+<ul>
+<li><b>Callers just speak</b>, in their own language or mixed. No app, no reading, no typing. It also works for elders and for people
+who can't read English.</li>
+<li><b>Owners teach the agent by speaking</b>, in any language, like explaining to a new employee:<br>
+<i>"ಯಾರಾದರೂ KYC ಬಗ್ಗೆ ಕೇಳಿದರೆ, documents ಸರಿ ಇದ್ದರೆ recheck ಮಾಡಿ, photo blurry ಇದ್ದರೆ upload link ಕಳುಹಿಸಿ."</i><br>
+("If someone asks about KYC: if the documents are fine, re-check; if the photo is blurry, send the upload link.")<br>
+→ Sahaaya turns this into clear rules, reads them back in Kannada, and uses them after the owner approves.</li>
+<li><b>Feels like a person:</b> hands-free talking, the caller can interrupt, it says "ಒಂದು ನಿಮಿಷ" (one moment) instantly while it checks,
+and it keeps answers short.</li>
+</ul><div class="n">4</div></div>
+
+<div class="s"><h2>How it works</h2>
+<div class="flow">
+🎤 Caller speaks (browser mic today; phone line next)<br>
+→ <b>Sarvam Saarika</b> speech-to-text, with automatic language detection<br>
+→ <b>Agent brain</b>: Sarvam-105B, with automatic backup to NVIDIA Nemotron. It uses tools:<br>
+&nbsp;&nbsp;&nbsp;• Service Center: free slots, book, cancel, repair status, tickets<br>
+&nbsp;&nbsp;&nbsp;• Dashboard Connect: tools <b>generated automatically</b> from the company's API description (OpenAPI)<br>
+→ <b>Sarvam Bulbul</b> natural Indian voice, first sentence first<br>
+→ Owner's dashboard updates live: bookings, tickets, actions, call transcripts
+</div>
+<p class="muted">Built with FastAPI, SQLite and a plain web front-end. One command: <b>docker compose up</b>. It starts without keys and shows "key not set".</p><div class="n">5</div></div>
+
+<div class="s"><h2>Accuracy and safety, enforced in code</h2>
+<table><tr><th>Risk</th><th>What Sahaaya does</th></tr>
+<tr><td>Making things up</td><td>Answers only from records and the owner's info. A ready calendar is provided, so it never does date maths. It never promises new dates</td></tr>
+<tr><td>Someone else's data</td><td>Records that don't match the caller's number are <b>withheld by the server</b> unless the caller verifies with the last 4 digits. Changes run only on the caller's own records</td></tr>
+<tr><td>Wrong action</td><td>Reading is allowed, changes need the caller's "yes", deleting is blocked. The owner controls each action</td></tr>
+<tr><td>Wrong language</td><td>A reply in the wrong script or with mixed scripts is regenerated</td></tr>
+<tr><td>Noise or mishearing</td><td>Asks again, reads numbers back, and after 3 tries creates a callback ticket</td></tr>
+<tr><td>Service down</td><td>Automatic backup AI. A dashboard error leads to an apology and a ticket, never silence. Phone numbers are masked in logs and never spoken</td></tr>
+</table>
+<p><b>Measured:</b> 44 test conversations in 5 languages + mixed speech: <b>89%</b> (text), <b>82%</b> with real speech plus background noise.
+Most remaining misses were the automatic grader being strict. No data leaks.</p><div class="n">6</div></div>
+
+<div class="s"><h2>Who it is for, and how many</h2>
+<table><tr><th>Users</th><th>Examples</th><th>Size (rough)</th></tr>
+<tr><td>Small businesses</td><td>Repair shops, clinics, salons, kirana stores, tutors</td><td>India has ~6 crore MSMEs. Most have no receptionist or software</td></tr>
+<tr><td>Medium businesses</td><td>Service centres, hospitals, online sellers, schools</td><td>Lakhs, handling hundreds of calls a day</td></tr>
+<tr><td>Large companies</td><td>Fintech and e-commerce apps (KYC, orders), banks, telecom</td><td>Thousands of calls a day across many languages</td></tr>
+<tr><td>Their customers</td><td>Anyone who would rather speak than type</td><td>Crores of people, many more comfortable in their mother tongue</td></tr>
+</table>
+<p class="muted">Figures are rough estimates for sizing, to be validated in the pilot.</p><div class="n">7</div></div>
+
+<div class="s"><h2>What it depends on, and what if it gets costly or stops</h2>
+<table><tr><th>Dependency</th><th>Used for</th><th>If it gets costly or stops working</th></tr>
+<tr><td>Sarvam AI</td><td>Speech-to-text, voices, main brain</td><td>Brain switches to NVIDIA automatically. Typing still works. Long-term: self-host open models (AI4Bharat IndicConformer and Indic Parler-TTS, Llama/Gemma) for private deployments</td></tr>
+<tr><td>NVIDIA NIM</td><td>Backup brain, test grading</td><td>Sarvam stays primary. Any OpenAI-compatible model can be plugged in with one setting</td></tr>
+<tr><td>Company dashboard API</td><td>Live account and order data</td><td>Agent apologises, raises a ticket, and staff call back</td></tr>
+<tr><td>Phone line (next step)</td><td>Real calls via an Indian provider (Exotel/Plivo) and call forwarding</td><td>Browser "Talk to us" button and web calls keep working</td></tr>
+</table>
+<p><b>Cost control:</b> short replies, cached "one moment" phrases, one lookup at call start. Plans include fixed minutes, never unlimited.</p><div class="n">8</div></div>
+
+<div class="s"><h2>Launch plan: first users and growth</h2>
+<ul>
+<li><b>Month 1 — pilot with 20 shops in Karnataka</b> (repair shops and clinics in Mysuru and Bengaluru). We set it up for them in person,
+for free, and measure missed calls, bookings made and language accuracy every week.</li>
+<li><b>Month 2–3 — real phone numbers:</b> call forwarding from the shop's own number to a Sahaaya number. Daily WhatsApp summary to the owner
+("14 calls answered, 3 bookings").</li>
+<li><b>Month 3–6 — first company integrations:</b> fintech and e-commerce apps with KYC and order dashboards. Start read-only, then allow
+actions once the owner trusts it.</li>
+<li><b>Growth:</b> owner referrals, local trader associations, mobile shop resellers who set it up, and short demo videos in regional languages.</li>
+<li><b>Pricing:</b> free trial, then about ₹999/month for small shops (number + minutes) and custom plans for companies.</li>
+</ul><div class="n">9</div></div>
+
+<div class="s"><h1 style="font-size:52px">Sahaaya AI</h1>
+<p class="big">"From a repair shop in Mysuru to a fintech app with lakhs of users: one voice agent that understands
+every caller in their language and actually fixes the problem."</p>
+<p>Try it: <b>docker compose up</b> → http://localhost:8000 (app) and http://localhost:9000 (sample company dashboard)</p>
+<p class="muted">Built during the hackathon: about 1,800 lines of our own code, 11 automated tests, and an accuracy test set in 5 languages.</p><div class="n">10</div></div>
+</body></html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sahaaya AI – Voice Agent for Businesses</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">◉</span> Sahaaya AI <small>voice agent for every business</small></div>
+  <nav>
+    <button class="tab active" data-tab="service">📞 Service Center</button>
+    <button class="tab" data-tab="connect">🔗 Dashboard Connect</button>
+  </nav>
+</header>
+<div id="keybanner" class="banner hidden"></div>
+
+<main>
+  <!-- ===================== CALL PANEL (shared) ===================== -->
+  <section class="card call" id="callpanel">
+    <h2 id="calltitle">Talk to the agent</h2>
+    <p class="muted" id="callhint">Pretend you are a customer calling the shop. Speak in any language.</p>
+    <div class="row">
+      <label>Calling as
+        <select id="caller"></select>
+      </label>
+      <label>Greeting language
+        <select id="lang"></select>
+      </label>
+    </div>
+    <div class="row">
+      <button id="startbtn" class="primary">📞 Start call</button>
+      <button id="endbtn" class="danger hidden">End call</button>
+      <span id="callstate" class="pill">idle</span>
+    </div>
+    <div id="mic" class="mic hidden">
+      <div class="meter"><div id="level"></div></div>
+      <label class="switch"><input type="checkbox" id="handsfree" checked> Hands-free (just talk, you can interrupt)</label>
+      <button id="ptt" class="hidden">🎤 Hold to talk</button>
+    </div>
+    <div id="chat" class="chat"></div>
+    <form id="typeform" class="row hidden">
+      <input id="typed" placeholder="…or type what the caller says" autocomplete="off">
+      <button>Send</button>
+    </form>
+    <details class="trace"><summary>What the agent did (live)</summary><div id="trace"></div></details>
+  </section>
+
+  <!-- ===================== SECTION 1: SERVICE CENTER ===================== -->
+  <section class="panel" id="service">
+    <div class="card">
+      <h2>Schedule <small class="muted" id="shopname"></small></h2>
+      <div id="schedule" class="days"></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Repairs in shop</h3><div id="jobs"></div></div>
+      <div class="card"><h3>🔔 Notifications</h3><ul id="snotes" class="notes"></ul></div>
+    </div>
+    <div class="card"><h3>Tickets & callbacks</h3><div id="stickets"></div></div>
+    <div class="card"><h3>Recent calls</h3><div id="scalls"></div></div>
+    <details class="card"><summary><b>⚙️ Shop settings</b> (hours, slots, prices the agent uses)</summary>
+      <form id="settings" class="settings"></form>
+    </details>
+  </section>
+
+  <!-- ===================== SECTION 2: DASHBOARD CONNECT ===================== -->
+  <section class="panel hidden" id="connect">
+    <div class="card">
+      <h2>1 · Connect your dashboard</h2>
+      <p class="muted">Give your dashboard's address and an API key. Sahaaya reads what your dashboard can do
+        and turns each action into something the agent can use. <a id="demolink" target="_blank">Open the sample QuickKart dashboard ↗</a></p>
+      <form id="connform" class="row wrap">
+        <input name="base_url" placeholder="https://your-dashboard.com" required>
+        <input name="api_key" placeholder="API key" required>
+        <input name="key_header" value="X-API-Key" title="Header name for the key">
+        <button class="primary">Connect</button>
+      </form>
+      <div id="connstatus"></div>
+    </div>
+    <div class="card">
+      <h2>2 · What the agent may do</h2>
+      <p class="muted">Reading is allowed. Changing anything needs the caller's “yes”. Deleting is blocked. You decide.</p>
+      <div id="ops"></div>
+    </div>
+    <div class="card">
+      <h2>3 · Teach the agent — just talk, in any language</h2>
+      <p class="muted">Explain how to handle cases, like you'd explain to a new employee.
+        e.g. <i>“ಯಾರಾದರೂ KYC ಬಗ್ಗೆ ಕೇಳಿದರೆ, documents ಸರಿ ಇದ್ದರೆ recheck ಮಾಡಿ, photo blurry ಇದ್ದರೆ upload link ಕಳುಹಿಸಿ.”</i></p>
+      <div class="row">
+        <button id="teachmic">🎤 Hold & speak</button>
+        <form id="teachform" class="row grow"><input id="teachtext" placeholder="…or type your instruction" autocomplete="off"><button>Teach</button></form>
+      </div>
+      <div id="teachout" class="muted"></div>
+      <div id="rules"></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>🔔 Agent actions on your dashboard</h3><ul id="cnotes" class="notes"></ul></div>
+      <div class="card"><h3>Tickets & callbacks</h3><div id="ctickets"></div></div>
+    </div>
+    <div class="card"><h3>Recent calls</h3><div id="ccalls"></div></div>
+  </section>
+</main>
+<footer class="muted">Sahaaya · speech by Sarvam AI · reasoning by Sarvam / NVIDIA · phone numbers are masked in all logs</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

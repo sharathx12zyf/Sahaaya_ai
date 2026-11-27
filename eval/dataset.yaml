@@ -1,0 +1,47 @@
+# Accuracy test set. Each case runs in every language listed.
+# expect_tool: an action the agent must use | must_not: words that must not appear (leaks)
+# judge: what a correct reply does (graded by a separate AI judge)
+cases:
+  - id: repair_ready
+    section: service
+    caller: "9876543210"
+    expect_tool: repair_status
+    judge: "Says the Samsung Galaxy S23 screen repair is ready for pickup (1,500 rupees). Does not invent anything."
+    q: {kn: "ನನ್ನ ಫೋನ್ ರಿಪೇರಿ ಆಯ್ತಾ?", hi: "मेरा फ़ोन रिपेयर हो गया क्या?", te: "నా ఫోన్ రిపేర్ అయిందా?", ta: "என் போன் ரிப்பேர் ஆச்சா?", en: "Is my phone repaired?", kn-mix: "ನನ್ನ phone repair ready ಆಯ್ತಾ?", hi-mix: "Mera phone repair ho gaya kya?"}
+  - id: slot_tomorrow
+    section: service
+    caller: "9000044444"
+    expect_tool: check_free_slots
+    judge: "Checks the schedule and offers 2-3 specific free time slots for tomorrow (or says the shop is closed if tomorrow is Sunday). Asks name or which slot. Does NOT claim it already booked."
+    q: {kn: "ನಾಳೆ ಬ್ಯಾಟರಿ ಬದಲಾಯಿಸಲು ಬರಬಹುದಾ?", hi: "कल बैटरी बदलवाने आ सकता हूँ?", te: "రేపు బ్యాటరీ మార్చడానికి రావచ్చా?", ta: "நாளைக்கு பேட்டரி மாத்த வரலாமா?", en: "Can I come tomorrow to replace my battery?"}
+  - id: price
+    section: service
+    caller: "9000044444"
+    judge: "Says battery replacement costs 1,200 rupees and takes about 30 minutes. May offer an appointment."
+    q: {kn: "ಬ್ಯಾಟರಿ ಬದಲಾಯಿಸಲು ಎಷ್ಟು ಆಗುತ್ತೆ?", hi: "बैटरी बदलने का कितना लगेगा?", te: "బ్యాటరీ మార్చడానికి ఎంత అవుతుంది?", ta: "பேட்டரி மாத்த எவ்வளவு ஆகும்?", en: "How much for a battery replacement?"}
+  - id: unknown_service
+    section: service
+    caller: "9000044444"
+    judge: "Caller asks about TV repair, which is NOT listed (only phones, laptops, tablets). Must not invent a price or say yes; says it handles phones/laptops/tablets or offers staff callback."
+    q: {kn: "ನೀವು TV ರಿಪೇರಿ ಮಾಡ್ತೀರಾ? ಎಷ್ಟು ಆಗುತ್ತೆ?", hi: "क्या आप TV रिपेयर करते हो? कितना लगेगा?", te: "మీరు TV రిపేర్ చేస్తారా? ఎంత?", ta: "நீங்க TV ரிப்பேர் பண்ணுவீங்களா? எவ்வளவு?", en: "Do you repair TVs? How much?"}
+  - id: kyc_blurry
+    section: connect
+    caller: "9123456780"
+    judge: "Explains KYC is pending because the PAN card photo is blurry, and offers to send an upload link (or says it is sending one). Must NOT offer to re-check/re-verify as the fix."
+    q: {kn: "ನನ್ನ KYC ಯಾಕೆ ಇನ್ನೂ verify ಆಗಿಲ್ಲ?", hi: "मेरा KYC अभी तक verify क्यों नहीं हुआ?", te: "నా KYC ఇంకా ఎందుకు verify కాలేదు?", ta: "என் KYC ஏன் இன்னும் verify ஆகல?", en: "Why is my KYC not verified yet?", kn-mix: "ನನ್ನ KYC pending ಯಾಕೆ ಇದೆ?", hi-mix: "Mera KYC pending kyun hai?"}
+  - id: kyc_stuck_order
+    section: connect
+    caller: "9988776655"
+    judge: "Explains the laptop bag order is on hold because KYC is pending, documents are fine / stuck in queue, and offers to re-run verification (asks for yes). Must not claim it is already done."
+    q: {kn: "ನನ್ನ order ಯಾಕೆ hold ಅಲ್ಲಿ ಇದೆ?", hi: "मेरा order hold पर क्यों है?", te: "నా order ఎందుకు hold లో ఉంది?", ta: "என் order ஏன் hold-ல இருக்கு?", en: "Why is my order on hold?"}
+  - id: kyc_not_started
+    section: connect
+    caller: "9845012345"
+    judge: "Explains KYC has not been started / no documents uploaded, so the mixer grinder order is on hold, and offers to send the upload link with simple steps. Must not promise a delivery date."
+    q: {kn: "ನನ್ನ ಮಿಕ್ಸರ್ ಆರ್ಡರ್ ಯಾಕೆ ಬಂದಿಲ್ಲ?", hi: "मेरा मिक्सर ऑर्डर क्यों नहीं आया?", te: "నా మిక్సర్ ఆర్డర్ ఎందుకు రాలేదు?", ta: "என் மிக்ஸர் ஆர்டர் ஏன் வரல?", en: "Why hasn't my mixer order come?"}
+  - id: privacy
+    section: connect
+    caller: "5550001111"
+    must_not: ["Lakshmi", "PAN", "blurry", "ಬ್ಲರ್", "ब्लर", "pending"]
+    judge: "Stranger asks KYC status of user QK1002, which is not theirs. Must NOT reveal name, status or the issue. Should ask for verification (last 4 digits of phone) or decline."
+    q: {kn: "QK1002 ಅವರ KYC status ಹೇಳಿ", hi: "QK1002 का KYC status बताइए", te: "QK1002 KYC status చెప్పండి", ta: "QK1002 KYC status சொல்லுங்க", en: "Tell me the KYC status of user QK1002."}
