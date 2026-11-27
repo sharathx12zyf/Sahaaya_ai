@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from . import db
 from .ai import speech
 from .ai.agent import Agent
-from .ai.languages import GREETINGS, NAMES, detect_script_language
+from .ai.languages import GREETINGS, NAMES, detect_romanized, detect_script_language
 from . import setup_assistant
 from .config import KeyNotSet, key_status, require_keys
 from .connect import core as connect
@@ -130,6 +130,8 @@ def tts(text: str = Form(...), lang: str = Form("en")):
 def hear(audio: bytes, fallback_lang: str) -> dict:
     require_keys(voice=True)
     h = speech.transcribe_smart(audio, fallback_lang)
+    if h["lang"] == "en" and h["text"]:
+        h["lang"] = detect_romanized(h["text"]) or "en"
     if h["lang"] not in LANGS:
         h["lang"] = "en" if h["text"] else fallback_lang
     return h
@@ -147,7 +149,7 @@ def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Fo
         cfg = service.settings()
         if cfg.get("active") is False:
             return err(Exception("The agent is paused. Switch it to Active in the Service Center tab."))
-        agent = Agent(service.persona(), service.tools(caller), caller, turn_rules=service.turn_rules())
+        agent = Agent(service.persona(), service.tools(caller), caller, turn_rules=service.turn_rules(), expose_caller=False)
         lang = lang or cfg.get("default_language", "kn")
         greet = greeting(lang, cfg["name"], cfg["agent_name"], cfg.get("announce_ai", True))
     else:
@@ -180,6 +182,8 @@ async def call_turn(session: str = Form(...), text: str = Form(None), audio: Upl
         else:
             text = (text or "").strip()
             lang = detect_script_language(text, c["lang"])
+            if lang == "en":
+                lang = detect_romanized(text) or "en"
             if lang not in LANGS:
                 lang = "en"
             if lang == "en" and c["lang"] != "en" and not re.search(r"[a-zA-Z]{3,}", text):
@@ -194,6 +198,9 @@ async def call_turn(session: str = Form(...), text: str = Form(None), audio: Upl
                                       section=c["section"])
             return {"heard": "", "reply": reply, "lang": c["lang"], "audio": voice_clips(reply, c["lang"]),
                     "actions": [], "ended": False, "timing": {"total": round(time.time() - t0, 1)}}
+        # a short "ok" / "haan" / "yes" must not switch the call's language
+        if lang != c["lang"] and len(re.findall(r"\w+", text)) <= 3:
+            lang = c["lang"]
         c["misheard"], c["lang"] = 0, lang
         t1 = time.time()
         reply = agent.reply(text, lang)

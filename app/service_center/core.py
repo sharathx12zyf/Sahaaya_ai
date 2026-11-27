@@ -192,7 +192,31 @@ def free_slots(date: str) -> dict:
     return {"date": date, "weekday": d.strftime("%A"), "free": free}
 
 
+def spoken_time(hhmm: str) -> str:
+    """'13:00' -> '1 in the afternoon': the part of day is decided by code, so the agent never says 'morning 1 PM'."""
+    if hhmm.startswith("24"):
+        return "12 midnight"
+    h, m = int(hhmm[:2]), int(hhmm[3:5])
+    part = ("midnight" if h == 0 else "early morning" if h < 6 else "morning" if h < 12 else
+            "afternoon" if h < 16 else "evening" if h < 20 else "night")
+    h12 = h % 12 or 12
+    mm = f":{m:02d}" if m else ""
+    if part == "midnight":
+        return f"12{mm} midnight"
+    return f"{h12}{mm} at night" if part == "night" else f"{h12}{mm} in the {part}"
+
+
+def _with_spoken(r: dict) -> dict:
+    r["say_as"] = [f"{spoken_time(x[:5])} to {spoken_time(x[6:11])}" for x in r.get("free", [])]
+    r["say_as_note"] = "Translate these phrases into the caller's language exactly; keep the part of day (morning/afternoon/evening/night)."
+    return r
+
+
 def slots_to_offer(date: str, part_of_day: str = "", time: str = "") -> dict:
+    return _with_spoken(_slots_to_offer(date, part_of_day, time))
+
+
+def _slots_to_offer(date: str, part_of_day: str = "", time: str = "") -> dict:
     """For the agent: if the caller named a time, say if it is free (or the nearest free times);
     otherwise at most 3 options spread over the day / part of day. Reading 8 slots aloud isn't human."""
     r = free_slots(date)
@@ -208,7 +232,7 @@ def slots_to_offer(date: str, part_of_day: str = "", time: str = "") -> dict:
     # suggest normal customer hours first (matters for 24/7 businesses); night only if asked
     friendly = [x for x in allfree if "09:00" <= x[:5] < "21:00"]
     free = friendly or allfree
-    ranges = {"morning": ("06:00", "12:00"), "afternoon": ("12:00", "16:00"), "evening": ("16:00", "21:00"),
+    ranges = {"morning": ("08:00", "12:00"), "afternoon": ("12:00", "16:00"), "evening": ("16:00", "21:00"),
               "night": ("21:00", "23:59"), "midnight": ("00:00", "06:00")}
     if part_of_day in ranges:
         free = allfree
@@ -225,6 +249,10 @@ def slots_to_offer(date: str, part_of_day: str = "", time: str = "") -> dict:
 
 
 def book_slot(name: str, purpose: str, date: str, time: str, phone: str) -> dict:
+    from ..ai.agent import NOT_A_NAME
+    if name.strip().lower() in NOT_A_NAME:
+        return {"booked": False, "reason": f"'{name}' is not a real name (probably misheard). Ask the caller's name again, "
+                                           "or use 'Customer' if they don't want to give it."}
     time = time.strip()[:5].zfill(5)
     slots = free_slots(date)
     if "error" in slots:
@@ -236,8 +264,11 @@ def book_slot(name: str, purpose: str, date: str, time: str, phone: str) -> dict
     d = datetime.date.fromisoformat(date)
     end = datetime.datetime.combine(d, _t(time)) + datetime.timedelta(minutes=int(settings()["slot_minutes"]))
     db.notify("service", f"New {settings()['words']['booking']}: {name} ({purpose}) on {d:%d %b} at {time}")
+    day = "today" if d == datetime.date.today() else "tomorrow" if d == datetime.date.today() + datetime.timedelta(1) else f"{d:%A %d %B}"
+    spoken = f"{day}, {spoken_time(time)} to {spoken_time(end.strftime('%H:%M') if end.date() == d else '24:00')}"
     return {"booked": True, "booking_id": f"B{aid}", "when": f"{d:%A %d %B}, {time} to {end:%H:%M}",
-            "sms": "confirmation SMS sent to caller"}
+            "sms": "confirmation SMS sent to caller",
+            "say": f"Tell the caller clearly, in their language: booked for {spoken}."}
 
 
 def my_bookings(phone: str) -> dict:
@@ -367,7 +398,8 @@ def tools(phone: str) -> list[Tool]:
                  {"date": {**S, "description": "YYYY-MM-DD"}, "part_of_day": S, "time": {**S, "description": "HH:MM 24h"}},
                  slots_to_offer, ["date"]),
             Tool("book_slot", f"Book a {w['booking']} after the caller confirmed name, {w['purpose']}, date and time.",
-                 {"name": S, "purpose": {**S, "description": w["purpose"]}, "date": {**S, "description": "YYYY-MM-DD"},
+                 {"name": {**S, "description": "caller's name, or 'Customer' if they don't want to give it"},
+                  "purpose": {**S, "description": "ONLY the problem / what they need (not the name or number), e.g. 'Vivo V27 screen broken, touch not working'"}, "date": {**S, "description": "YYYY-MM-DD"},
                   "time": {**S, "description": "start time HH:MM from the free slots"}},
                  lambda **a: book_slot(phone=phone, **a), ["name", "purpose", "date", "time"]),
             Tool("my_bookings", "The caller's upcoming bookings.", {}, lambda: my_bookings(phone)),
@@ -440,14 +472,16 @@ def persona() -> str:
         for i, word in ((0, "today"), (1, "tomorrow")):
             d = (today + datetime.timedelta(days=i)).isoformat()
             o = slots_to_offer(d)
-            parts.append(f"{word} {d}: " + (", ".join(o["free"]) if o["free"] else o.get("note", "none free")))
-        known = ("\nFREE TIMES ALREADY CHECKED (offer these right away; for any other day or a specific time, "
-                 "call check_free_slots): " + " | ".join(parts))
+            parts.append(f"{word} {d}: " + (", ".join(f"{a} ({b})" for a, b in zip(o["free"], o["say_as"]))
+                                            if o["free"] else o.get("note", "none free")))
+        known = ("\nFREE TIMES ALREADY CHECKED, only 3 EXAMPLES per day (offer them right away). For a specific time, a part "
+                 "of the day (morning/afternoon/evening/night) or another day, call check_free_slots; never say a time or "
+                 "part of day is not free without checking it: " + " | ".join(parts))
     cat = "; ".join(f"{r[0]}: {r[1]:g} rupees/{r[2]}" + (f" ({r[3]})" if r[3] else "") for r in c.get("catalog", [])[:25])
     return f"""You are {c['agent_name']}, the phone assistant of "{c['name']}" ({TEMPLATES.get(c['type'], TEMPLATES['custom'])['label']}).
 You can: {', '.join(can)}. Anything else: offer a staff callback.
 How to help: {c.get('steps', '')}
 {hours_text(c)}.
-When booking, collect: {w['purpose']} (the caller's mobile number is already known from the call; confirm it only if they want a different number).
+When booking, collect: {w['purpose']}. The caller's mobile number is already known from the call: never ask for it.
 BUSINESS INFO: {c['info']}
 ITEMS AND PRICES (owner's list): {cat or 'none listed'}{known}"""

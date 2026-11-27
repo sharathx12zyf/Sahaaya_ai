@@ -1,3 +1,5 @@
+import re
+
 """Language codes + script-based detection (very reliable for native-script text)."""
 
 NAMES = {
@@ -47,3 +49,26 @@ def foreign_script(text: str, lang: str) -> bool:
             if lo <= cp <= hi and code != lang and not (code == "hi" and lang == "mr"):
                 return True
     return False
+
+
+# Romanised Indian languages typed or transcribed in English letters ("mera phone kharab hai", "naale barteeni").
+_ROMAN = {
+    "hi": {"hai", "hain", "mera", "meri", "mere", "kya", "kyun", "nahi", "nahin", "bhaiya", "bhai", "kal", "aaj", "naam",
+           "ho", "gaya", "gayi", "karo", "kar", "kitna", "kitne", "paisa", "kab", "sham", "subah", "raat", "chahiye",
+           "theek", "thik", "accha", "achha", "haan", "ji", "aap", "hum", "kaise", "kuch", "abhi", "baad", "lagega"},
+    "kn": {"naale", "nale", "ivattu", "ide", "illa", "beku", "beda", "maadi", "madi", "banni", "barthini", "bartini",
+           "hesaru", "nanna", "nimma", "yaake", "yake", "eshtu", "ellide", "aagtilla", "agtilla", "sari", "houdu",
+           "howdu", "swalpa", "guru", "saar", "sanje", "beligge", "ratri", "aaytu", "ayitu", "gottilla"},
+    "te": {"naa", "nenu", "meeru", "ledu", "undi", "unnayi", "cheyyandi", "cheyandi", "repu", "ippudu", "enti", "emiti",
+           "entha", "ela", "peru", "raavachha", "ravacha", "saayantram", "udayam", "avunu", "kaadu", "kavali", "baagundi"},
+}
+
+
+def detect_romanized(text: str) -> str | None:
+    """Return hi/kn/te if a Latin-script sentence is really Hinglish/Kanglish/Tenglish, else None."""
+    words = re.findall(r"[a-z]+", text.lower())
+    if not words:
+        return None
+    score = {k: sum(w in v for w in words) for k, v in _ROMAN.items()}
+    best = max(score, key=score.get)
+    return best if score[best] >= 2 or (score[best] == 1 and len(words) <= 4) else None

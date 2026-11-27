@@ -37,7 +37,8 @@ def noisy(wav):
 def run(case, key, use_speech):
     q, lang = case["q"][key], key.split("-")[0]
     if case["section"] == "service":
-        agent = Agent(service.persona(), service.tools(case["caller"]), case["caller"], turn_rules=service.turn_rules())
+        agent = Agent(service.persona(), service.tools(case["caller"]), case["caller"], turn_rules=service.turn_rules(),
+                      expose_caller=False)
     else:
         tools, _ = connect.tools(case["caller"])
         agent = Agent(connect.persona() + "\n" + connect.prefetch(case["caller"], {t.name: t for t in tools}), tools, case["caller"],

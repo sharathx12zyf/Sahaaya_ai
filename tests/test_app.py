@@ -170,3 +170,14 @@ def test_company_profile_and_demo_rules(dashboard_url):
     connect.save_profile({"name": "ShopFast", "about": "Online grocery app", "agent_name": "Meera"})
     p = connect.persona()
     assert "ShopFast" in p and "Meera" in p and "Online grocery app" in p
+
+
+def test_misheard_name_is_caught():
+    from app.ai.agent import misheard_name
+    assert misheard_name("నా పేరు అది") == "అది" and misheard_name("నా పేరు రవి") is None
+    assert misheard_name("my name is Arjun") is None
+    service.apply_template("repair")
+    day = _next_open_day()
+    slot = service.free_slots(day)["free"][0][:5]
+    assert service.book_slot("అది", "screen", day, slot, "9000011111")["booked"] is False
+    service.apply_template("repair")
