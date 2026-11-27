@@ -168,7 +168,8 @@ $("#endbtn").onclick = endCall;
 async function startCall() {
   $("#chat").innerHTML = ""; $("#trace").innerHTML = "";
   setState("thinking");
-  const r = await api("/api/call/start", { section: tab, caller: $("#caller").value, lang: $("#lang").value });
+  const typed = $("#callerphone").value.replace(/\D/g, "").slice(-10);
+  const r = await api("/api/call/start", { section: tab, caller: typed.length === 10 ? typed : $("#caller").value, lang: $("#lang").value });
   if (r.error) { addMsg("sys", "⚠️ " + r.error); setState("idle"); return; }
   call.session = r.session; call.lang = r.lang;
   Object.keys(status.languages).forEach(loadFillers);
@@ -218,6 +219,9 @@ async function refreshService() {
   if (!$("#btype").options.length) $("#btype").innerHTML = Object.entries(o.templates).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
   $("#btype").value = S.type;
   $("#schedcard").classList.toggle("hidden", !F.bookings);
+  $("#active").checked = S.active !== false; $("#announce").checked = S.announce_ai !== false;
+  $("#bookings").innerHTML = table(["When", "Customer", "Mobile", "Problem / details"], (o.bookings || []).map((b) =>
+    [esc(fmtDay(b.start.slice(0, 10)) + " " + b.start.slice(11)), esc(b.name), esc(b.phone), esc(b.purpose)]), true);
   $("#schedtitle").innerHTML = `Schedule <small class="muted">· ${esc(W.booking)}s</small>`;
   $("#rectitle").textContent = W.records;
   $("#catalog").innerHTML = table(["Item / service", "₹", "Unit", "Note", ""], (S.catalog || []).map((r, i) =>
@@ -288,16 +292,34 @@ $("#btype").onchange = async () => {
   if (!confirm("Switch business type? This loads that type's sample items and records (you can edit them).")) { refresh(); return; }
   await api("/api/service/template", { kind: $("#btype").value }); settingsKey = ""; await refresh(); fillCallers();
 };
-async function describe(data) {
-  $("#descout").textContent = "Setting up your business…";
-  const r = await api("/api/service/describe", { lang: $("#lang").value, ...data });
-  if (r.error) { $("#descout").textContent = "⚠️ " + r.error; return; }
-  $("#descout").innerHTML = `Heard: “${esc(r.heard)}”<br>✅ Set up as <b>${esc(r.label)}</b>. 🗣️ ${esc(r.readback)} <br>Check the items and settings below and change anything.`;
+// ---------------- setup conversation ----------------
+function setupMsg(who, text) {
+  const d = document.createElement("div"); d.className = "msg " + (who === "user" ? "you" : "agent");
+  d.textContent = text; $("#setupchat").appendChild(d); d.scrollIntoView({ block: "nearest" });
+}
+async function loadSetup() {
+  const h = await api("/api/setup/history"); $("#setupchat").innerHTML = "";
+  if (!h.length) setupMsg("assistant", "Hi! Tell me about your business and what you need your phone agent to do. You can talk in English, ಕನ್ನಡ, हिंदी or తెలుగు.");
+  h.forEach((m) => setupMsg(m.role, m.content));
+}
+async function setupTurn(data) {
+  if (data.text) setupMsg("user", data.text);
+  const wait = document.createElement("div"); wait.className = "msg sys"; wait.textContent = "…"; $("#setupchat").appendChild(wait);
+  const r = await api("/api/setup/turn", { lang: $("#lang").value, ...data }); wait.remove();
+  if (r.error) { setupMsg("assistant", "⚠️ " + r.error); return; }
+  if (data.audio) setupMsg("user", r.heard);
+  setupMsg("assistant", r.reply);
+  if (r.changes?.length) { const d = document.createElement("div"); d.className = "msg sys"; d.textContent = "✓ settings updated"; $("#setupchat").appendChild(d); }
   if (r.audio?.length) playClips(r.audio, r.rest, r.lang);
   settingsKey = ""; await refresh(); fillCallers();
+  if (r.done) $("#democall").classList.add("pulse");
 }
-$("#descform").onsubmit = (e) => { e.preventDefault(); const t = $("#desctext").value.trim(); if (t) { $("#desctext").value = ""; describe({ text: t }); } };
-holdToSpeak($("#descmic"), (blob) => describe({ audio: blob }), "#descout");
+$("#setupform").onsubmit = (e) => { e.preventDefault(); const t = $("#setuptext").value.trim(); if (t) { $("#setuptext").value = ""; setupTurn({ text: t }); } };
+holdToSpeak($("#setupmic"), (blob) => setupTurn({ audio: blob }), "#setupchat");
+$("#setupreset").onclick = async () => { await api("/api/setup/reset", {}); loadSetup(); };
+$("#democall").onclick = () => { $("#democall").classList.remove("pulse"); $("#caller").value = "9000011111"; window.scrollTo({ top: 0, behavior: "smooth" }); startCall(); };
+$("#active").onchange = () => api("/api/service/settings", { data: JSON.stringify({ active: $("#active").checked }) });
+$("#announce").onchange = () => api("/api/service/settings", { data: JSON.stringify({ announce_ai: $("#announce").checked }) });
 
 // ---------------- Section 2 rendering ----------------
 async function refreshConnect() {
@@ -377,6 +399,6 @@ async function refresh() {
       (status.keys.sarvam || status.keys.nvidia ? "some AI features are limited." : "AI calls are disabled until you add a key to .env and restart.");
     $("#keybanner").classList.remove("hidden");
   }
-  switchTab("service");
+  switchTab("service"); loadSetup();
   setInterval(() => { if (!call.session) refresh(); }, 5000);
 })();

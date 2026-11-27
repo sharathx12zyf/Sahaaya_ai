@@ -29,6 +29,8 @@
         <select id="lang"></select>
       </label>
     </div>
+    <div class="row"><label>Caller's mobile (optional — a real phone call gives this automatically)
+      <input id="callerphone" inputmode="numeric" maxlength="13" placeholder="e.g. 98450 12345"></label></div>
     <div class="row">
       <button id="startbtn" class="primary">📞 Start call</button>
       <button id="endbtn" class="danger hidden">End call</button>
@@ -50,19 +52,25 @@
   <!-- ===================== SECTION 1: SERVICE CENTER ===================== -->
   <section class="panel" id="service">
     <div class="card">
-      <h2>Set up your business <small class="muted" id="shopname"></small></h2>
-      <p class="muted">Any business: kirana store, clinic, salon, restaurant, repair shop… Pick a type, or just
-        <b>describe your business in your own language</b> and the agent sets itself up. You can change everything below.</p>
-      <div class="row wrap">
-        <label>Business type<select id="btype"></select></label>
-      </div>
+      <h2>1 · Set up your agent — just talk to it <small class="muted" id="shopname"></small></h2>
+      <p class="muted">Tell Sahaaya what you need, in any language, like you'd tell a new employee. It asks questions and sets
+        itself up. e.g. <i>“I run a mobile repair shop. Give 1-hour slots, be available 24/7, book customers and show me their
+        name, mobile and problem. If they ask the price, say please visit once for checking, then we give a quotation.”</i></p>
+      <div id="setupchat" class="chat"></div>
       <div class="row">
-        <button id="descmic">🎤 Hold & describe</button>
-        <form id="descform" class="row grow"><input id="desctext" autocomplete="off"
-          placeholder="e.g. ನನ್ನದು ಕಿರಾಣಿ ಅಂಗಡಿ, ಬೆಳಿಗ್ಗೆ 7 ರಿಂದ ರಾತ್ರಿ 9, ಅಕ್ಕಿ ಕೆಜಿಗೆ 60, home delivery ಇದೆ"><button>Set up</button></form>
+        <button id="setupmic">🎤 Hold & speak</button>
+        <form id="setupform" class="row grow"><input id="setuptext" autocomplete="off" placeholder="…or type to your setup assistant"><button>Send</button></form>
       </div>
-      <div id="descout" class="muted"></div>
+      <div class="row wrap">
+        <button id="democall" class="primary">📞 Demo call (test it)</button>
+        <label class="switch"><input type="checkbox" id="active" checked> Agent active (answers calls)</label>
+        <label class="switch"><input type="checkbox" id="announce" checked> Say “AI assistant” in the greeting</label>
+        <button id="setupreset" title="Clear the setup conversation">Start over</button>
+        <label style="flex:0 1 220px">Quick start from a type<select id="btype"></select></label>
+      </div>
+      <p class="muted" style="font-size:12px">If a caller sincerely asks whether they're talking to a person, the agent always answers honestly.</p>
     </div>
+    <div class="card"><h3>📋 Bookings <small class="muted">customer name, mobile and problem</small></h3><div id="bookings"></div></div>
     <div class="card" id="schedcard">
       <h2 id="schedtitle">Schedule</h2>
       <div id="schedule" class="days"></div>

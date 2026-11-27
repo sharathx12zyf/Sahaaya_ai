@@ -16,6 +16,7 @@ from . import db
 from .ai import speech
 from .ai.agent import Agent
 from .ai.languages import GREETINGS, NAMES, detect_script_language
+from . import setup_assistant
 from .config import KeyNotSet, key_status, require_keys
 from .connect import core as connect
 from .service_center import core as service
@@ -45,6 +46,19 @@ def _startup():
                 connect.seed_demo_rules()
         except Exception:
             pass
+
+
+GREET = {
+    "kn": ("ನಮಸ್ಕಾರ, {biz}. ನಾನು {agent}{ai}. ಹೇಳಿ, ಏನು ಸಹಾಯ ಬೇಕು?", ", AI ಸಹಾಯಕಿ"),
+    "hi": ("नमस्ते, {biz}. मैं {agent} बोल रही हूँ{ai}. बताइए, क्या मदद करूँ?", ", AI सहायक"),
+    "te": ("నమస్కారం, {biz}. నేను {agent}{ai}. చెప్పండి, ఏం సహాయం కావాలి?", ", AI సహాయకురాలు"),
+    "en": ("Hello, {biz}. This is {agent}{ai}. How can I help you?", ", an AI assistant"),
+}
+
+
+def greeting(lang, biz, agent, announce_ai=True):
+    tpl, ai = GREET.get(lang, GREET["en"])
+    return tpl.format(biz=biz, agent=agent, ai=ai if announce_ai else "")
 
 
 def err(e: Exception, code=400):
@@ -131,9 +145,11 @@ def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Fo
         return err(e)
     if section == "service":
         cfg = service.settings()
+        if cfg.get("active") is False:
+            return err(Exception("The agent is paused. Switch it to Active in the Service Center tab."))
         agent = Agent(service.persona(), service.tools(caller), caller, turn_rules=service.turn_rules())
         lang = lang or cfg.get("default_language", "kn")
-        greet = GREETINGS.get(lang, GREETINGS["en"]).format(biz=cfg["name"], agent=cfg["agent_name"])
+        greet = greeting(lang, cfg["name"], cfg["agent_name"], cfg.get("announce_ai", True))
     else:
         conn = connect.connection()
         if not conn:
@@ -142,7 +158,7 @@ def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Fo
         known = connect.prefetch(caller, {t.name: t for t in tools})
         agent = Agent(connect.persona() + "\n" + known, tools, caller, turn_rules=connect.turn_rules())
         p = connect.profile()
-        greet = GREETINGS.get(lang, GREETINGS["en"]).format(biz=p["name"] + " support", agent=p["agent_name"])
+        greet = greeting(lang, p["name"] + " support", p["agent_name"], p.get("announce_ai", True))
     agent.say_first(greet)
     sid = uuid.uuid4().hex[:12]
     CALLS[sid] = {"section": section, "agent": agent, "lang": lang, "caller": caller, "misheard": 0,
@@ -242,6 +258,7 @@ def service_overview():
         free[d] = {**f, "free": f.get("free", [])[:8], "more_free_slots": max(0, len(f.get("free", [])) - 8)}
     return {"settings": service.settings(), "schedule": sched, "free": free,
             "records": db.q("SELECT * FROM records ORDER BY due DESC"),
+            "bookings": service.bookings_list(),
             "templates": {k: v["label"] for k, v in TEMPLATES.items()},
             "tickets": db.q("SELECT * FROM tickets WHERE section='service' ORDER BY created DESC")}
 
@@ -277,6 +294,37 @@ async def service_describe(text: str = Form(None), lang: str = Form("en"), audio
         return out
     except KeyNotSet as e:
         return err(e)
+
+
+@app.post("/api/setup/turn")
+async def setup_turn(text: str = Form(None), lang: str = Form("en"), audio: UploadFile = File(None)):
+    """Owner talks to the setup assistant (voice or text, any language)."""
+    try:
+        require_keys(voice=audio is not None)
+        if audio is not None:
+            h = hear(await audio.read(), lang)
+            text, lang = h["text"], h["lang"]
+        else:
+            lang = detect_script_language(text or "", lang)
+            lang = lang if lang in LANGS else "en"
+        if not text:
+            return err(Exception("Didn't hear anything, please try again."))
+        out = setup_assistant.turn(text, lang)
+        out.update(heard=text, lang=lang, audio=voice_clips(out["reply"], lang), rest=_sentences(out["reply"])[1:])
+        return out
+    except KeyNotSet as e:
+        return err(e)
+
+
+@app.get("/api/setup/history")
+def setup_history():
+    return setup_assistant.history()
+
+
+@app.post("/api/setup/reset")
+def setup_reset():
+    setup_assistant.reset()
+    return {"ok": True}
 
 
 @app.get("/api/service/callers")

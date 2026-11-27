@@ -9,7 +9,7 @@ a separate AI judge's verdict on correctness.
 
 | Mode | Kannada | Hindi | Telugu | English | Kanglish | Hinglish | **Total** |
 |---|---|---|---|---|---|---|---|
-| Text (latest) | 7/8 | 7/8 | 7/8 | 8/8 | 2/2 | 2/2 | **33/36 (92%)** |
+| Text (latest) | 8/8 | 8/8 | 7/8 | 8/8 | 2/2 | 1/2 | **34/36 (94%)** |
 
 Earlier speech + background noise run (5 languages incl. Tamil, before the customisable-business update): 36/44 (82%).
 
@@ -21,6 +21,6 @@ for example, marking the real shop address as "invented", or a correct Telugu "w
 wrong. No data leak happened in any privacy case. Real mistakes left: in some "KYC not started"
 replies the agent asks about documents instead of directly offering the upload link.
 
-How accuracy went up during development (same test set, text mode): 68% → 86% → 89%. The fixes were
+How accuracy went up during development (text mode): 68% → 86% → 89% → 92% → 94%. The fixes were
 owner rules repeated every turn, a ready calendar instead of date maths, server-side privacy checks,
 max 3 slots offered, and a language/script guard.

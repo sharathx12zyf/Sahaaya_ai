@@ -11,6 +11,7 @@ services:
       DEMO_DASHBOARD_URL: http://dashboard:9000          # how the app reaches the sample dashboard
       DEMO_DASHBOARD_PUBLIC_URL: http://localhost:9000   # link shown in the browser
       DEMO_DASHBOARD_KEY: demo-key-123
+      TZ: Asia/Kolkata
     volumes: ["vaani-data:/srv/data"]
     depends_on: [dashboard]
   dashboard:
@@ -19,5 +20,6 @@ services:
     ports: ["9000:9000"]
     environment:
       DASHBOARD_API_KEY: demo-key-123
+      TZ: Asia/Kolkata
 volumes:
   vaani-data:

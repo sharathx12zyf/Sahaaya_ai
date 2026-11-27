@@ -146,7 +146,23 @@ def _num(v):
 
 # ---------------- schedule ----------------
 def _t(s):
+    if s in ("24:00", "23:59"):
+        return datetime.time(23, 59, 59)
     return datetime.datetime.strptime(s, "%H:%M").time()
+
+
+def _day_end(d, close):
+    """'24:00' = end of day, so 1-hour slots run until midnight."""
+    if close in ("24:00", "23:59"):
+        return datetime.datetime.combine(d + datetime.timedelta(days=1), datetime.time(0, 0))
+    return datetime.datetime.combine(d, _t(close))
+
+
+def _break(d, cfg):
+    b = cfg.get("break") or []
+    if len(b) < 2 or not all(b):
+        return None, None
+    return datetime.datetime.combine(d, _t(b[0])), datetime.datetime.combine(d, _t(b[1]))
 
 
 def free_slots(date: str) -> dict:
@@ -164,13 +180,14 @@ def free_slots(date: str) -> dict:
         "SELECT start FROM appointments WHERE status='booked' AND start LIKE ?", (date + "%",))}
     step = datetime.timedelta(minutes=int(cfg["slot_minutes"]))
     cur = datetime.datetime.combine(d, _t(cfg["open"]))
-    end = datetime.datetime.combine(d, _t(cfg["close"]))
-    b0, b1 = (datetime.datetime.combine(d, _t(x)) for x in cfg["break"])
+    end = _day_end(d, cfg["close"])
+    b0, b1 = _break(d, cfg)
     now = datetime.datetime.now()
     free = []
     while cur + step <= end:
-        if not (b0 <= cur < b1) and cur > now + datetime.timedelta(minutes=30) and cur.strftime("%H:%M") not in booked:
-            free.append(f"{cur:%H:%M}-{cur + step:%H:%M}")
+        if not (b0 and b0 <= cur < b1) and cur > now + datetime.timedelta(minutes=30) and cur.strftime("%H:%M") not in booked:
+            nxt = cur + step
+            free.append(f"{cur:%H:%M}-" + ("24:00" if nxt.date() > d and nxt.time() == datetime.time(0) else f"{nxt:%H:%M}"))
         cur += step
     return {"date": date, "weekday": d.strftime("%A"), "free": free}
 
@@ -188,9 +205,13 @@ def slots_to_offer(date: str, part_of_day: str = "", time: str = "") -> dict:
         near = sorted(allfree, key=lambda x: abs(mins(x) - mins(t)))[:3]
         return {**r, "free": sorted(near), "requested_time_free": False,
                 "note": "Requested time is not free; offer these nearest times."}
-    free = allfree
-    ranges = {"morning": ("00:00", "12:00"), "afternoon": ("12:00", "16:00"), "evening": ("16:00", "23:59")}
+    # suggest normal customer hours first (matters for 24/7 businesses); night only if asked
+    friendly = [x for x in allfree if "09:00" <= x[:5] < "21:00"]
+    free = friendly or allfree
+    ranges = {"morning": ("06:00", "12:00"), "afternoon": ("12:00", "16:00"), "evening": ("16:00", "21:00"),
+              "night": ("21:00", "23:59"), "midnight": ("00:00", "06:00")}
     if part_of_day in ranges:
+        free = allfree
         lo, hi = ranges[part_of_day]
         inside = [x for x in free if lo <= x[:5] < hi]
         if inside or not free:
@@ -243,7 +264,8 @@ def search_catalog(query: str = "") -> dict:
     hits = [r for r in cat if not words or any(w in r[0].lower() for w in words)]
     fmt = lambda r: {"item": r[0], "price_rupees": r[1], "unit": r[2], "note": r[3]}
     if not hits:
-        return {"found": 0, "note": "Not in the list. Do not guess a price; say you will check with the owner.",
+        return {"found": 0, "note": "Not in the owner's price list. Never guess a price: follow the owner's instructions about "
+                "prices (e.g. visit for checking, then quotation), or say the owner will confirm. Don't mention 'the list'.",
                 "available_items": [r[0] for r in cat][:15]}
     return {"found": len(hits), "items": [fmt(r) for r in hits[:8]]}
 
@@ -341,7 +363,7 @@ def tools(phone: str) -> list[Tool]:
         out += [
             Tool("check_free_slots", f"Free {w['booking']} times for one date (YYYY-MM-DD from the calendar). "
                  "If the caller named a time, pass it as time (24h HH:MM, e.g. 5 in the evening = 17:00); "
-                 "else optional part_of_day: morning, afternoon or evening.",
+                 "else optional part_of_day: morning, afternoon, evening, night or midnight.",
                  {"date": {**S, "description": "YYYY-MM-DD"}, "part_of_day": S, "time": {**S, "description": "HH:MM 24h"}},
                  slots_to_offer, ["date"]),
             Tool("book_slot", f"Book a {w['booking']} after the caller confirmed name, {w['purpose']}, date and time.",
@@ -371,7 +393,24 @@ def tools(phone: str) -> list[Tool]:
 
 
 def _12h(hhmm: str) -> str:
+    if hhmm in ("24:00", "23:59"):
+        return "midnight"
     return datetime.datetime.strptime(hhmm, "%H:%M").strftime("%I:%M %p").lstrip("0").replace(":00 ", " ")
+
+
+def hours_text(c) -> str:
+    if c["open"] == "00:00" and c["close"] in ("24:00", "23:59") and not c["closed_days"]:
+        return "Open 24 hours, every day (bookings possible any time)"
+    b = c.get("break") or []
+    return (f"Hours: {_12h(c['open'])} to {_12h(c['close'])}"
+            + (f", closed {', '.join(c['closed_days'])}" if c["closed_days"] else ", open all days")
+            + (f"; break {_12h(b[0])} to {_12h(b[1])}" if len(b) == 2 and all(b) else ""))
+
+
+def bookings_list(days: int = 14) -> list:
+    t = datetime.date.today().isoformat()
+    return db.q("SELECT id,name,phone,purpose,start FROM appointments WHERE status='booked' AND start>=? "
+                "AND phone!='9000000000' ORDER BY start LIMIT 50", (t,))
 
 
 def turn_rules() -> str:
@@ -408,6 +447,7 @@ def persona() -> str:
     return f"""You are {c['agent_name']}, the phone assistant of "{c['name']}" ({TEMPLATES.get(c['type'], TEMPLATES['custom'])['label']}).
 You can: {', '.join(can)}. Anything else: offer a staff callback.
 How to help: {c.get('steps', '')}
-Hours: {_12h(c['open'])} to {_12h(c['close'])}{', closed ' + ', '.join(c['closed_days']) if c['closed_days'] else ', open all days'}; break {_12h(c['break'][0])} to {_12h(c['break'][1])}.
+{hours_text(c)}.
+When booking, collect: {w['purpose']} (the caller's mobile number is already known from the call; confirm it only if they want a different number).
 BUSINESS INFO: {c['info']}
 ITEMS AND PRICES (owner's list): {cat or 'none listed'}{known}"""

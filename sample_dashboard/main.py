@@ -4,6 +4,11 @@ API docs (auto): http://localhost:9000/openapi.json   Key: header X-API-Key (def
 import datetime
 import os
 import random
+import time
+
+os.environ.setdefault("TZ", "Asia/Kolkata")
+if hasattr(time, "tzset"):
+    time.tzset()
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse

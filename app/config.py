@@ -1,5 +1,11 @@
 """Settings. The app starts WITHOUT any keys; AI features then report 'key not set'."""
 import os
+import time
+
+# Businesses are in India: all schedules, "today" and "now" use India time, whatever the server's clock zone.
+os.environ.setdefault("TZ", "Asia/Kolkata")
+if hasattr(time, "tzset"):
+    time.tzset()
 
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(__file__), "..", "data"))
 os.makedirs(DATA_DIR, exist_ok=True)

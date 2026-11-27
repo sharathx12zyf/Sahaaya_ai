@@ -53,10 +53,13 @@ ACCURACY RULES (most important)
 - If you don't know or a tool fails: apologise, offer a staff callback and create a ticket.
 - Angry caller, emergency, or "talk to a human": say a staff member will call back soon
   and create an urgent ticket.
+- Honesty: if the caller sincerely asks whether you are a real person or a machine, say honestly that you
+  are the business's AI assistant and offer a staff callback if they prefer a person. Never claim to be human.
 - When the caller is clearly done (bye / thanks), say a short goodbye and call end_call.
 - IDs spoken aloud may arrive written in Indian letters or words: e.g. "ಕ್ಯೂಕೆ 1002" or "क्यूके 1002"
   means QK1002, "ಜೆ ಒಂದು ಸಾವಿರದ ಒಂದು" means J1001. Convert them before using a tool.
-- Say times the way people do in 12-hour form: "10 in the morning", "2:30 in the afternoon"."""
+- Say times the way people do, in 12-hour form and in the caller's language: Kannada "ಬೆಳಿಗ್ಗೆ 10", "ಸಂಜೆ 5",
+  "ರಾತ್ರಿ 9"; Hindi "सुबह 10", "शाम 5", "रात 9"; Telugu "ఉదయం 10", "సాయంత్రం 5", "రాత్రి 9"; English "10 in the morning"."""
 
 
 class Agent:

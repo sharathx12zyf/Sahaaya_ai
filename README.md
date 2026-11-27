@@ -6,8 +6,8 @@ and **gets the job done**: books a slot, re-runs a KYC check, sends an upload li
 
 | Section | What it does | Example |
 |---|---|---|
-| 📞 **Service Center** | Voice receptionist for shops & service centres with no software | "My phone screen broke, can I come tomorrow?" → checks the owner's schedule → books **Sat 11:00–11:30** |
-| 🔗 **Dashboard Connect** | Plugs into a company's own dashboard and works inside it | "Why is my order stuck? KYC pending?" → finds the account → documents fine → **re-runs KYC, order released** |
+| 📞 **Service Center** | Voice receptionist for **any** small business (repair shop, kirana store, clinic, salon, restaurant, custom), set up by **talking to it** | "My phone screen broke, can I come tonight at 9?" → checks the schedule → books it → name, mobile and problem appear on the owner's dashboard |
+| 🔗 **Dashboard Connect** | Plugs into **any** company's dashboard (API) or Google Sheet/CSV and works inside it | "Why is my order stuck? KYC pending?" → finds the account → documents fine → **re-runs KYC, order released** |
 
 In Dashboard Connect the owner **teaches the agent by speaking, in any language**
 ("ಯಾರಾದರೂ KYC ಬಗ್ಗೆ ಕೇಳಿದರೆ… recheck ಮಾಡಿ"). Sahaaya turns it into clear rules, reads them back in the
@@ -45,8 +45,11 @@ Without Docker: `pip install -r requirements.txt`, then run
 `DEMO_DASHBOARD_URL=http://127.0.0.1:9000 uvicorn app.main:app --port 8000`.
 
 ## Try it
-1. **Service Center** tab → *Calling as* "New customer" → **Start call** → say
-   *"ನನ್ನ phone screen ಒಡೆದಿದೆ, ನಾಳೆ ಬರಬಹುದಾ?"*. Watch the slot appear in the schedule.
+1. **Service Center** tab → talk to the **setup assistant** (any language): *"I run a mobile repair shop. 1-hour slots,
+   24/7, book customers with name, mobile and problem. If they ask the price, say please visit once for checking, then
+   we give a quotation."* It asks follow-up questions and sets itself up. Then press **📞 Demo call** and say
+   *"ನನ್ನ phone screen ಒಡೆದಿದೆ, ಇವತ್ತು ರಾತ್ರಿ 9 ಕ್ಕೆ ಬರಬಹುದಾ?"*. The booking appears under **Bookings**.
+   Other businesses: pick a type (kirana store, clinic, salon, restaurant) or just describe yours.
 2. **Dashboard Connect** tab → *Teach the agent*: hold the mic and explain a rule in any language → **Approve**.
 3. Call as *"Arun — KYC stuck"* → *"मेरा order क्यों रुका है?"* → say yes → open the QuickKart
    dashboard: KYC is now **verified** and the order **processing**.
@@ -70,7 +73,10 @@ each action into a tool. Default permissions: reading **allowed**, changing **as
 deleting **blocked**. The owner can change each one.
 
 ## Accuracy & safety (enforced in code, not just in prompts)
-- Answers only from records and the owner's info. Never invents prices, dates or promises.
+- Answers only from records and the owner's info. Never invents prices, dates or promises. Order totals and
+  delivery rules are calculated by code, not by the AI.
+- The owner can turn off "AI assistant" in the greeting, but if a caller sincerely asks, the agent always says honestly
+  that it's an AI assistant and offers a staff callback.
 - Replies in the caller's language and script. A reply in the wrong script or with mixed scripts is redone.
 - Reads key details back and acts only after the caller says yes.
 - **Privacy guard:** records whose phone number isn't the caller's are withheld unless the caller
