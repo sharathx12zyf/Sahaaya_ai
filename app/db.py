@@ -12,11 +12,11 @@ PATH = os.path.join(DATA_DIR, "vaani.db")
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS appointments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, phone TEXT, device TEXT, issue TEXT,
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, phone TEXT, purpose TEXT,
   start TEXT, status TEXT DEFAULT 'booked', created TEXT DEFAULT CURRENT_TIMESTAMP);
-CREATE TABLE IF NOT EXISTS jobs (
-  id TEXT PRIMARY KEY, phone TEXT, name TEXT, device TEXT, issue TEXT, status TEXT,
-  amount INTEGER, ready_by TEXT);
+CREATE TABLE IF NOT EXISTS records (
+  id TEXT PRIMARY KEY, phone TEXT, name TEXT, title TEXT, detail TEXT, status TEXT,
+  amount REAL, due TEXT);
 CREATE TABLE IF NOT EXISTS tickets (
   id TEXT PRIMARY KEY, section TEXT, phone TEXT, issue TEXT, details TEXT,
   urgent INTEGER DEFAULT 0, status TEXT DEFAULT 'open', created TEXT DEFAULT CURRENT_TIMESTAMP);

@@ -49,21 +49,57 @@ def test_slots_respect_bookings_break_and_closed_days():
 def test_booking_flow_and_double_booking():
     day = _next_open_day()
     slot = service.free_slots(day)["free"][0][:5]
-    r = service.book_slot("Suresh", "Redmi Note 12", "screen", day, slot, "9000011111")
+    r = service.book_slot("Suresh", "Redmi Note 12 screen", day, slot, "9000011111")
     assert r["booked"]
-    again = service.book_slot("Other", "Phone", "x", day, slot, "9000022222")
+    again = service.book_slot("Other", "Phone", day, slot, "9000022222")
     assert again["booked"] is False                                                           # no double booking
     assert service.my_bookings("9000011111")["bookings"]
     assert service.cancel_booking(r["booking_id"], "9000022222")["cancelled"] is False       # not their booking
 
 
-def test_repair_status_only_own():
-    assert service.repair_status("9876543210")["repairs"][0]["status"] == "Ready for pickup"
-    assert service.repair_status("9000000001", "J1001")["found"] == 0
+def test_records_only_own():
+    service.apply_template("repair")
+    assert service.my_records("9876543210")["records"][0]["status"] == "Ready for pickup"
+    assert service.my_records("9000000001", "J1001")["found"] == 0
+
+
+def test_every_template_works():
+    from app.service_center.templates import TEMPLATES
+    for kind in TEMPLATES:
+        service.apply_template(kind)
+        s = service.settings()
+        names = [t.name for t in service.tools("9000011111")]
+        assert ("check_free_slots" in names) == bool(s["features"]["bookings"])
+        assert ("place_order" in names) == bool(s["features"]["orders"])
+        assert s["name"] in service.persona()
+    service.apply_template("repair")
+
+
+def test_grocery_catalog_and_order():
+    service.apply_template("grocery")
+    assert service.search_catalog("rice")["items"][0]["price_rupees"] == 60
+    assert service.search_catalog("atta")["items"][0]["note"] == "out of stock"
+    assert service.search_catalog("iphone")["found"] == 0                      # never guess
+    o = service.place_order("Rice 2 kg, milk 1", "delivery", "147", "5th Main", "Suresh", "9000011111")
+    assert o["status"] == "placed"
+    rec = service.my_records("9000011111")["records"][0]
+    assert rec["what"] == "Rice 2 kg, milk 1" and "Home delivery" in rec["detail"]
+    service.apply_template("repair")
+
+
+def test_owner_can_customise_everything():
+    service.apply_template("custom")
+    service.save_settings({"name": "Ganesh Tailors", "catalog": [["Blouse stitching", 450, "piece", "5 days"]],
+                           "features": {"orders": True}, "closed_days": []})
+    s = service.settings()
+    assert s["name"] == "Ganesh Tailors" and s["features"]["orders"] and s["features"]["bookings"]
+    assert "Blouse stitching: 450 rupees/piece" in service.persona()
+    service.apply_template("repair")
 
 
 def test_agent_uses_tool_then_answers():
-    llm = FakeLLM([{"tool_calls": [tool_call("repair_status")]}, {"content": "ನಿಮ್ಮ phone ready ಇದೆ."}])
+    service.apply_template("repair")
+    llm = FakeLLM([{"tool_calls": [tool_call("my_status")]}, {"content": "ನಿಮ್ಮ phone ready ಇದೆ."}])
     a = Agent(service.persona(), service.tools("9876543210"), "9876543210", llm)
     out = a.reply("ನನ್ನ phone ready ಆಯ್ತಾ?", "kn")
     assert detect_script_language(out) == "kn" and a.actions[0]["result"]["found"] == 1
@@ -110,3 +146,27 @@ def test_broken_dashboard_does_not_crash():
     conn = {"base_url": "http://127.0.0.1:1", "key_header": "X", "api_key": "k"}
     op = {"id": "x", "method": "GET", "path": "/u/{id}", "params": {"id": "string"}, "permission": "allowed"}
     assert "error" in connect.call_op(conn, op, {"id": "1"}, connect.Guard("1"))
+
+
+def test_connect_google_sheet_or_csv(dashboard_url):
+    r = connect.discover(dashboard_url + "/export/customers.csv", "")
+    assert r["ok"] and connect.connection()["kind"] == "sheet"
+    tools, _ = connect.tools("9123456780")
+    t = {x.name: x for x in tools}
+    mine = t["find_my_records"].fn(phone="9123456780")
+    assert mine["found"] == 1 and mine["rows"][0]["kyc_issue"] == "PAN card photo is blurry"
+    tools, _ = connect.tools("5550001111")                       # stranger searching the sheet
+    t = {x.name: x for x in tools}
+    leak = t["search_records"].fn(query="Lakshmi")
+    assert leak["found"] == 0 and "rows" not in leak
+    assert connect._sheet_csv_url("https://docs.google.com/spreadsheets/d/abc123/edit#gid=7").endswith("export?format=csv&gid=7")
+
+
+def test_company_profile_and_demo_rules(dashboard_url):
+    db.put("rules", [])
+    connect.discover(dashboard_url, "demo-key-123")
+    connect.seed_demo_rules()
+    assert all(r["approved"] for r in connect.rules()) and len(connect.rules()) == 3
+    connect.save_profile({"name": "ShopFast", "about": "Online grocery app", "agent_name": "Meera"})
+    p = connect.persona()
+    assert "ShopFast" in p and "Meera" in p and "Online grocery app" in p

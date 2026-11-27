@@ -9,10 +9,7 @@ const api = async (path, data, method) => {
 };
 
 const CALLERS = {
-  service: [
-    ["9876543210", "Ravi — repair ready"], ["9123456780", "Lakshmi — repair in progress"],
-    ["9988776655", "Arun — waiting for spare part"], ["9000011111", "New customer"],
-  ],
+  service: [["9000011111", "New customer"]],      // filled from the business's own records
   connect: [
     ["9988776655", "Arun — KYC stuck, documents fine"], ["9123456780", "Lakshmi — KYC: blurry PAN photo"],
     ["9845012345", "Fatima — KYC not started"], ["9876543210", "Ravi — verified, order out for delivery"],
@@ -20,7 +17,7 @@ const CALLERS = {
   ],
 };
 const TEXT = {
-  service: ["Call the repair shop", "Pretend you're a customer: say what's wrong with your device and ask for a time slot. Any language."],
+  service: ["Call the business", "Pretend you're a customer of this business: ask prices, book a time, order items or ask your status. Any language."],
   connect: ["Call company support", "Pretend you're a customer of the connected company: ask why your order is late or KYC isn't done. Any language."],
 };
 let tab = "service", status = null;
@@ -34,9 +31,19 @@ function switchTab(t) {
   $("#service").classList.toggle("hidden", t !== "service");
   $("#connect").classList.toggle("hidden", t !== "connect");
   $("#calltitle").textContent = TEXT[t][0]; $("#callhint").textContent = TEXT[t][1];
-  $("#caller").innerHTML = CALLERS[t].map(([p, n]) => `<option value="${p}">${esc(n)}</option>`).join("");
+  fillCallers();
   $("#chat").innerHTML = ""; $("#trace").innerHTML = "";
   refresh();
+}
+async function fillCallers() {
+  let list = CALLERS[tab];
+  if (tab === "service") {
+    const rows = await api("/api/service/callers");
+    list = [...rows.map((r) => [r.phone, r.name]), ["9000011111", "New customer"]];
+  }
+  const keep = $("#caller").value;
+  $("#caller").innerHTML = list.map(([p, n]) => `<option value="${p}">${esc(n)}</option>`).join("");
+  if ([...$("#caller").options].some((o) => o.value === keep)) $("#caller").value = keep;
 }
 
 // ---------------- audio out ----------------
@@ -164,7 +171,7 @@ async function startCall() {
   const r = await api("/api/call/start", { section: tab, caller: $("#caller").value, lang: $("#lang").value });
   if (r.error) { addMsg("sys", "⚠️ " + r.error); setState("idle"); return; }
   call.session = r.session; call.lang = r.lang;
-  ["kn", "hi", "te", "ta", "en"].forEach(loadFillers);
+  Object.keys(status.languages).forEach(loadFillers);
   $("#startbtn").classList.add("hidden"); $("#endbtn").classList.remove("hidden");
   $("#mic").classList.remove("hidden"); $("#typeform").classList.remove("hidden");
   addMsg("agent", r.reply, r.lang);
@@ -205,11 +212,29 @@ const fmtDay = (d) => new Date(d + "T00:00").toLocaleDateString(undefined, { wee
 let lastBooked = new Set();
 async function refreshService() {
   const o = await api("/api/service/overview");
-  $("#shopname").textContent = "· " + o.settings.name;
+  const S = o.settings, W = S.words, F = S.features;
+  $("#shopname").textContent = "· " + S.name;
+  $("#calltitle").textContent = "Call " + S.name;
+  if (!$("#btype").options.length) $("#btype").innerHTML = Object.entries(o.templates).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  $("#btype").value = S.type;
+  $("#schedcard").classList.toggle("hidden", !F.bookings);
+  $("#schedtitle").innerHTML = `Schedule <small class="muted">· ${esc(W.booking)}s</small>`;
+  $("#rectitle").textContent = W.records;
+  $("#catalog").innerHTML = table(["Item / service", "₹", "Unit", "Note", ""], (S.catalog || []).map((r, i) =>
+    [esc(r[0]), esc(r[1]), esc(r[2]), esc(r[3]), `<button data-del="${i}" title="Remove">✕</button>`]), true);
+  document.querySelectorAll("#catalog [data-del]").forEach((b) => b.onclick = async () => {
+    const cat = [...S.catalog]; cat.splice(+b.dataset.del, 1);
+    await api("/api/service/settings", { data: JSON.stringify({ catalog: cat }) }); refresh();
+  });
+  $("#catform").onsubmit = async (e) => {
+    e.preventDefault(); const d = Object.fromEntries(new FormData(e.target));
+    const cat = [...(S.catalog || []), [d.n, +d.p || 0, d.u, d.x]];
+    await api("/api/service/settings", { data: JSON.stringify({ catalog: cat }) }); e.target.reset(); refresh();
+  };
   const nowBooked = new Set();
   $("#schedule").innerHTML = Object.keys(o.schedule).map((d) => {
     const booked = o.schedule[d].map((a) => { nowBooked.add(a.id);
-      return `<div class="slot booked ${lastBooked.size && !lastBooked.has(a.id) ? "new" : ""}"><span>${a.start.slice(11)}</span><span>${esc(a.name)} · ${esc(a.device)}</span></div>`; }).join("");
+      return `<div class="slot booked ${lastBooked.size && !lastBooked.has(a.id) ? "new" : ""}"><span>${a.start.slice(11)}</span><span>${esc(a.name)} · ${esc(a.purpose)}</span></div>`; }).join("");
     const f = o.free[d];
     const free = f.note ? `<div class="slot"><span class="muted">${esc(f.note)}</span></div>`
       : (f.free || []).slice(0, 5).map((s) => `<div class="slot free"><span>${s}</span><span>free</span></div>`).join("") +
@@ -217,8 +242,8 @@ async function refreshService() {
     return `<div class="day"><h4>${fmtDay(d)}</h4>${booked || ""}${free}</div>`;
   }).join("");
   lastBooked = nowBooked;
-  $("#jobs").innerHTML = table(["Job", "Device / issue", "Status", "₹"], o.jobs.map((j) =>
-    [j.id, `${j.device}<br><span class="muted">${esc(j.issue)}</span>`, tag(j.status), j.amount]), true);
+  $("#jobs").innerHTML = table(["ID", "What", "Status", "₹"], o.records.map((j) =>
+    [esc(j.id), `${esc(j.title)}<br><span class="muted">${esc(j.detail)} · ${esc(j.name)}</span>`, tag(j.status), esc(j.amount)]), true);
   $("#stickets").innerHTML = tickets(o.tickets);
   fillSettings(o.settings);
 }
@@ -238,25 +263,51 @@ async function notesAndCalls(section, notesEl, callsEl) {
   $(callsEl).innerHTML = c.map((x) => `<details class="callrow"><summary>${esc(x.created.slice(5, 16))} · ${esc(x.caller)} · ${esc(x.lang)} · ${x.transcript.length} turns · ${x.actions.length} actions</summary>
       ${x.transcript.map((m) => `<div class="msg ${m.who === "agent" ? "agent" : "you"}">${esc(m.text)}</div>`).join("")}</details>`).join("") || `<p class="muted">No calls yet.</p>`;
 }
-let settingsFilled = false;
+let settingsKey = "";
 function fillSettings(s) {
-  if (settingsFilled) return; settingsFilled = true;
+  const key = JSON.stringify(s); if (key === settingsKey || document.activeElement?.closest("#settings")) return; settingsKey = key;
   const f = (k, l, full) => `<label class="${full ? "full" : ""}">${l}${full ? `<textarea name="${k}" rows="3">${esc(s[k])}</textarea>` : `<input name="${k}" value="${esc(Array.isArray(s[k]) ? s[k].join(", ") : s[k])}">`}</label>`;
-  $("#settings").innerHTML = f("name", "Shop name") + f("agent_name", "Agent name") + f("open", "Opens (HH:MM)") + f("close", "Closes (HH:MM)") +
-    f("slot_minutes", "Slot length (minutes)") + f("closed_days", "Closed days (comma separated)") + f("break", "Lunch break (start, end)") +
-    f("info", "Services, prices & info the agent may tell callers", true) + `<button class="primary">Save</button>`;
+  const chk = (k, l) => `<label class="switch"><input type="checkbox" name="f_${k}" ${s.features[k] ? "checked" : ""}> ${l}</label>`;
+  $("#settings").innerHTML = f("name", "Business name") + f("agent_name", "Agent name") + f("open", "Opens (HH:MM)") + f("close", "Closes (HH:MM)") +
+    f("slot_minutes", "Slot length (minutes)") + f("closed_days", "Closed days (comma separated)") + f("break", "Break (start, end)") +
+    `<div class="full row wrap">${chk("bookings", "Book appointments / slots")}${chk("orders", "Take orders")}${chk("records", "Tell order / job status")}</div>` +
+    `<label>Booking is called<input name="w_booking" value="${esc(s.words.booking)}"></label><label>Booking asks for<input name="w_purpose" value="${esc(s.words.purpose)}"></label>` +
+    f("info", "Other info the agent may tell callers (delivery, address, payment, rules)", true) +
+    f("steps", "How the agent should handle calls", true) + `<button class="primary">Save</button>`;
 }
 $("#settings").onsubmit = async (e) => {
-  e.preventDefault(); const d = Object.fromEntries(new FormData(e.target));
+  e.preventDefault(); const fd = new FormData(e.target); const d = Object.fromEntries(fd);
   d.closed_days = d.closed_days.split(",").map((x) => x.trim()).filter(Boolean);
   d.break = d.break.split(",").map((x) => x.trim()); d.slot_minutes = +d.slot_minutes;
-  await api("/api/service/settings", { data: JSON.stringify(d) }); refresh();
+  d.features = { bookings: fd.has("f_bookings"), orders: fd.has("f_orders"), records: fd.has("f_records") };
+  d.words = { booking: d.w_booking, purpose: d.w_purpose };
+  for (const k of Object.keys(d)) if (/^(f_|w_)/.test(k)) delete d[k];
+  await api("/api/service/settings", { data: JSON.stringify(d) }); settingsKey = ""; refresh();
 };
+$("#btype").onchange = async () => {
+  if (!confirm("Switch business type? This loads that type's sample items and records (you can edit them).")) { refresh(); return; }
+  await api("/api/service/template", { kind: $("#btype").value }); settingsKey = ""; await refresh(); fillCallers();
+};
+async function describe(data) {
+  $("#descout").textContent = "Setting up your business…";
+  const r = await api("/api/service/describe", { lang: $("#lang").value, ...data });
+  if (r.error) { $("#descout").textContent = "⚠️ " + r.error; return; }
+  $("#descout").innerHTML = `Heard: “${esc(r.heard)}”<br>✅ Set up as <b>${esc(r.label)}</b>. 🗣️ ${esc(r.readback)} <br>Check the items and settings below and change anything.`;
+  if (r.audio?.length) playClips(r.audio, r.rest, r.lang);
+  settingsKey = ""; await refresh(); fillCallers();
+}
+$("#descform").onsubmit = (e) => { e.preventDefault(); const t = $("#desctext").value.trim(); if (t) { $("#desctext").value = ""; describe({ text: t }); } };
+holdToSpeak($("#descmic"), (blob) => describe({ audio: blob }), "#descout");
 
 // ---------------- Section 2 rendering ----------------
 async function refreshConnect() {
   const r = await api("/api/connect"); const c = r.connection;
-  $("#connstatus").innerHTML = c ? `<p>✅ Connected to <b>${esc(c.name)}</b> at <code>${esc(c.base_url)}</code> · ${c.ops.length} actions found</p>`
+  const P = r.profile;
+  if (!document.activeElement?.closest("#profform")) $("#profform").innerHTML =
+    `<label>Company name<input name="name" value="${esc(P.name)}"></label><label>Agent name<input name="agent_name" value="${esc(P.agent_name)}"></label>` +
+    `<label class="full">What the company does<textarea name="about" rows="2">${esc(P.about)}</textarea></label><button class="primary">Save</button>`;
+  CALLERS.connect[0] && ($("#calltitle").textContent = "Call " + P.name + " support");
+  $("#connstatus").innerHTML = c ? `<p>✅ Connected to <b>${esc(c.name)}</b> (${c.kind === "sheet" ? "sheet" : "API"}) at <code>${esc(c.base_url)}</code> · ${c.ops.length} actions found</p>`
     : `<p class="muted">Not connected yet.</p>`;
   $("#ops").innerHTML = c ? c.ops.map((o) => `<div class="op"><div><b>${esc(o.summary)}</b><br><code>${o.method} ${esc(o.path)}</code></div>
       <select data-op="${esc(o.id)}">${[["allowed", "✅ Allowed"], ["confirm", "🗣️ Ask caller first"], ["blocked", "⛔ Blocked"]]
@@ -269,6 +320,20 @@ async function refreshConnect() {
   document.querySelectorAll("#rules button").forEach((b) => b.onclick = async () => { await api("/api/rules/" + b.dataset.r, { action: b.dataset.a }); refresh(); });
   $("#ctickets").innerHTML = tickets(r.tickets);
 }
+$("#profform").onsubmit = async (e) => {
+  e.preventDefault(); await api("/api/connect/profile", Object.fromEntries(new FormData(e.target))); document.activeElement.blur(); refresh();
+};
+async function cdescribe(data) {
+  $("#cdescout").textContent = "Understanding your company…";
+  const r = await api("/api/connect/describe", { lang: $("#lang").value, ...data });
+  if (r.error) { $("#cdescout").textContent = "⚠️ " + r.error; return; }
+  $("#cdescout").innerHTML = `Heard: “${esc(r.heard)}”<br>✅ ${esc(r.profile.name)}. 🗣️ ${esc(r.readback)}` +
+    (r.rules.length ? ` <b>${r.rules.length} rule(s) proposed below: approve them to use.</b>` : "");
+  if (r.audio?.length) playClips(r.audio, r.rest, r.lang);
+  refresh();
+}
+$("#cdescform").onsubmit = (e) => { e.preventDefault(); const t = $("#cdesctext").value.trim(); if (t) { $("#cdesctext").value = ""; cdescribe({ text: t }); } };
+holdToSpeak($("#cdescmic"), (blob) => cdescribe({ audio: blob }), "#cdescout");
 $("#connform").onsubmit = async (e) => {
   e.preventDefault(); $("#connstatus").textContent = "Reading your dashboard…";
   const r = await api("/api/connect", Object.fromEntries(new FormData(e.target)));
@@ -283,14 +348,17 @@ async function teach(data) {
   refresh();
 }
 $("#teachform").onsubmit = (e) => { e.preventDefault(); const t = $("#teachtext").value.trim(); if (t) { $("#teachtext").value = ""; teach({ text: t }); } };
-const tm = $("#teachmic");
-tm.onpointerdown = async (e) => {
-  e.preventDefault();
-  if (!status.keys.sarvam) { $("#teachout").textContent = "Voice is off (SARVAM_API_KEY not set). Type your instruction instead."; return; }
-  if (!(await openMic())) return;
-  tm.classList.add("down"); mic.onAudio = (blob) => { closeMic(); teach({ audio: blob }); }; startRec();
-};
-tm.onpointerup = tm.onpointerleave = () => { if (tm.classList.contains("down")) { tm.classList.remove("down"); stopRec(); } };
+function holdToSpeak(btn, onBlob, outSel) {
+  btn.onpointerdown = async (e) => {
+    e.preventDefault();
+    if (!status.keys.sarvam) { $(outSel).textContent = "Voice is off (SARVAM_API_KEY not set). Type instead."; return; }
+    if (call.session) { $(outSel).textContent = "End the call first."; return; }
+    if (!(await openMic())) return;
+    btn.classList.add("down"); mic.onAudio = (blob) => { closeMic(); onBlob(blob); }; startRec();
+  };
+  btn.onpointerup = btn.onpointerleave = () => { if (btn.classList.contains("down")) { btn.classList.remove("down"); stopRec(); } };
+}
+holdToSpeak($("#teachmic"), (blob) => teach({ audio: blob }), "#teachout");
 
 // ---------------- boot ----------------
 async function refresh() {

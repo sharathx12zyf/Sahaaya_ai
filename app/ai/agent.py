@@ -35,7 +35,8 @@ def calendar_hint(days=8) -> str:
 
 BASE_RULES = """HOW TO SPEAK
 - You are on a LIVE PHONE CALL. Sound like a warm, polite, real human, never robotic.
-- Reply in the caller's language, in that language's native script. If they mix languages
+- Languages: English, Kannada, Hindi, Telugu. Reply in the caller's language, in that language's native
+  script. If the caller uses any other language, reply in simple English. If they mix languages
   (Kanglish, Hinglish), mix the same way; English words like phone, order, slot are fine.
 - MAXIMUM 2 short sentences (under 30 words) per reply. One question at a time.
   No lists, markdown, emojis or brackets. Say times like "11 to 11:30 in the morning".
@@ -116,6 +117,23 @@ class Agent:
             for c in calls:
                 self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": self._run_tool(c)})
         out = (msg.get("content") or "").strip()
+        # "Let me check, one moment" without actually checking: make it do the check now, like a person would
+        used_tool = any(m.get("role") == "tool" for m in self.messages[self.messages.index(
+            next(m for m in reversed(self.messages) if m.get("role") == "user")):])
+        if out and not used_tool and STALL.search(out):
+            self.messages.append({"role": "assistant", "content": out})
+            self.messages.append({"role": "user", "content": "(You said you would check. Use the tool now, then answer.)"})
+            for _ in range(3):
+                msg = self.llm.chat(self.messages + [hint], tools=schemas)
+                calls = msg.get("tool_calls") or []
+                if not calls:
+                    break
+                self.messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
+                for c in calls:
+                    self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": self._run_tool(c)})
+            self.messages = [m for m in self.messages if m.get("content") != "(You said you would check. Use the tool now, then answer.)"
+                             and not (m.get("role") == "assistant" and m.get("content") == out and not m.get("tool_calls"))]
+            out = (msg.get("content") or out).strip()
         if out and lang != "en" and (detect_script_language(out, lang) != lang or foreign_script(out, lang)):
             fix = self.llm.chat(self.messages + [{"role": "assistant", "content": out},
                                 {"role": "user", "content": f"(Say exactly that again in {name}, native script only.)"}])
@@ -127,6 +145,9 @@ class Agent:
         self.messages.append({"role": "assistant", "content": out})
         return out
 
+
+STALL = re.compile(r"(let me check|i'?ll check|one moment|checking now|ಚೆಕ್ ಮಾಡ್ತೀನಿ|ನೋಡುತ್ತೇನೆ|ನೋಡ್ತೀನಿ|ಒಂದು ನಿಮಿಷ|"
+                   r"చూస్తాను|చెక్ చేస్తాను|ఒక్క నిమిషం|देखती हूँ|देखता हूँ|चेक कर|एक मिनट)", re.I)
 
 _PHONE = re.compile(r"(?<!\d)(?:\+?91[\s-]?)?\d{5}[\s-]?\d{5}(?!\d)")
 

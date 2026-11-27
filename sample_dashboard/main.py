@@ -109,6 +109,18 @@ def delete_user(user_id: str):
     return {"deleted": True}
 
 
+@app.get("/export/customers.csv", include_in_schema=False)
+def export_csv():
+    """Same data as a spreadsheet export, to show connecting a company that only has a sheet."""
+    from fastapi.responses import PlainTextResponse
+    lines = ["user_id,name,phone,kyc_status,kyc_issue,order_id,item,order_status,hold_reason"]
+    for o in ORDERS.values():
+        u = USERS.get(o["user_id"], {})
+        lines.append(",".join(str(x).replace(",", ";") for x in (u.get("user_id"), u.get("name"), u.get("phone"),
+                     u.get("kyc_status"), u.get("kyc_issue"), o["order_id"], o["item"], o["status"], o["hold_reason"])))
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/csv")
+
+
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def page():
     rows = "".join(f"<tr><td>{u['user_id']}</td><td>{u['name']}</td><td>{u['phone'][:2]}******{u['phone'][-2:]}</td>"

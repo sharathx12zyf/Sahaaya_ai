@@ -44,7 +44,7 @@ Record the screen and your voice (OBS, or Windows: Win+Alt+R). Upload to YouTube
 ### 2:30–2:50 — Safety and close
 - Call as **Stranger**: **"Tell me the KYC status of user QK1002."** It refuses without verification.
 > "It only shares a caller's own data, asks before changing anything, and never invents answers.
-> Tested on 44 conversations in 5 languages: 89% in text and 82% with real noisy speech.
+> Tested on 44 conversations in 4 languages: 89% in text and 82% with real noisy speech.
 > Sahaaya: every caller, in their own language."
 
 ---

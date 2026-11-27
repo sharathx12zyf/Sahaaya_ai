@@ -19,17 +19,18 @@ from .ai.languages import GREETINGS, NAMES, detect_script_language
 from .config import KeyNotSet, key_status, require_keys
 from .connect import core as connect
 from .service_center import core as service
+from .service_center.templates import TEMPLATES
 
 app = FastAPI(title="Sahaaya")
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 POOL = ThreadPoolExecutor(8)
 CALLS: dict[str, dict] = {}
-LANGS = ["kn", "hi", "en", "te", "ta", "ml", "mr", "bn", "gu", "pa"]
+# Supported now: English, Kannada, Hindi, Telugu. A caller in any other language gets English.
+LANGS = ["kn", "hi", "en", "te"]
 REPEAT = {"kn": "ಕ್ಷಮಿಸಿ, ಸರಿಯಾಗಿ ಕೇಳಿಸಲಿಲ್ಲ. ಮತ್ತೊಮ್ಮೆ ಹೇಳುತ್ತೀರಾ?",
           "hi": "माफ़ कीजिए, ठीक से सुनाई नहीं दिया। फिर से बोलेंगे?",
           "te": "క్షమించండి, సరిగ్గా వినిపించలేదు. మళ్ళీ చెప్పగలరా?",
-          "ta": "மன்னிக்கவும், சரியாக கேட்கவில்லை. மீண்டும் சொல்ல முடியுமா?",
           "en": "Sorry, I didn't catch that. Could you say it again?"}
 
 
@@ -40,7 +41,8 @@ def _startup():
     url = os.environ.get("DEMO_DASHBOARD_URL")
     if url and not connect.connection():
         try:
-            connect.discover(url, os.environ.get("DEMO_DASHBOARD_KEY", "demo-key-123"))
+            if connect.discover(url, os.environ.get("DEMO_DASHBOARD_KEY", "demo-key-123")).get("ok"):
+                connect.seed_demo_rules()
         except Exception:
             pass
 
@@ -80,7 +82,6 @@ FILLERS = {
     "kn": ["ಸರಿ, ಒಂದು ನಿಮಿಷ.", "ಹಾ, ನೋಡ್ತೀನಿ.", "ಓಕೆ, ಚೆಕ್ ಮಾಡ್ತೀನಿ."],
     "hi": ["जी, एक मिनट।", "अच्छा, देखती हूँ।", "ठीक है, चेक करती हूँ।"],
     "te": ["సరే, ఒక్క నిమిషం.", "అలాగే, చూస్తాను.", "ఓకే, చెక్ చేస్తాను."],
-    "ta": ["சரி, ஒரு நிமிஷம்.", "சரி, பார்க்கிறேன்.", "ஓகே, செக் பண்றேன்."],
     "en": ["Sure, one moment.", "Okay, let me check.", "Alright, just a second."],
 }
 
@@ -115,14 +116,15 @@ def tts(text: str = Form(...), lang: str = Form("en")):
 def hear(audio: bytes, fallback_lang: str) -> dict:
     require_keys(voice=True)
     h = speech.transcribe_smart(audio, fallback_lang)
-    if h["lang"] not in NAMES:
-        h["lang"] = fallback_lang
+    if h["lang"] not in LANGS:
+        h["lang"] = "en" if h["text"] else fallback_lang
     return h
 
 
 # ---------------- calls (both sections) ----------------
 @app.post("/api/call/start")
 def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Form("kn")):
+    lang = lang if lang in LANGS else "en"
     try:
         require_keys()
     except KeyNotSet as e:
@@ -130,6 +132,7 @@ def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Fo
     if section == "service":
         cfg = service.settings()
         agent = Agent(service.persona(), service.tools(caller), caller, turn_rules=service.turn_rules())
+        lang = lang or cfg.get("default_language", "kn")
         greet = GREETINGS.get(lang, GREETINGS["en"]).format(biz=cfg["name"], agent=cfg["agent_name"])
     else:
         conn = connect.connection()
@@ -138,7 +141,8 @@ def call_start(section: str = Form(...), caller: str = Form(...), lang: str = Fo
         tools, _guard = connect.tools(caller)
         known = connect.prefetch(caller, {t.name: t for t in tools})
         agent = Agent(connect.persona() + "\n" + known, tools, caller, turn_rules=connect.turn_rules())
-        greet = GREETINGS.get(lang, GREETINGS["en"]).format(biz=conn["name"] + " support", agent="Sahaaya")
+        p = connect.profile()
+        greet = GREETINGS.get(lang, GREETINGS["en"]).format(biz=p["name"] + " support", agent=p["agent_name"])
     agent.say_first(greet)
     sid = uuid.uuid4().hex[:12]
     CALLS[sid] = {"section": section, "agent": agent, "lang": lang, "caller": caller, "misheard": 0,
@@ -160,6 +164,8 @@ async def call_turn(session: str = Form(...), text: str = Form(None), audio: Upl
         else:
             text = (text or "").strip()
             lang = detect_script_language(text, c["lang"])
+            if lang not in LANGS:
+                lang = "en"
             if lang == "en" and c["lang"] != "en" and not re.search(r"[a-zA-Z]{3,}", text):
                 lang = c["lang"]
         if len(text) < 2:      # silence or noise
@@ -230,9 +236,13 @@ def service_overview():
     days = [(today + datetime.timedelta(i)).isoformat() for i in range(3)]
     sched = {d: db.q("SELECT * FROM appointments WHERE status='booked' AND start LIKE ? ORDER BY start", (d + "%",))
              for d in days}
-    free = {d: service.free_slots(d) for d in days}
+    free = {}
+    for d in days:
+        f = service.free_slots(d)
+        free[d] = {**f, "free": f.get("free", [])[:8], "more_free_slots": max(0, len(f.get("free", [])) - 8)}
     return {"settings": service.settings(), "schedule": sched, "free": free,
-            "jobs": db.q("SELECT * FROM jobs"),
+            "records": db.q("SELECT * FROM records ORDER BY due DESC"),
+            "templates": {k: v["label"] for k, v in TEMPLATES.items()},
             "tickets": db.q("SELECT * FROM tickets WHERE section='service' ORDER BY created DESC")}
 
 
@@ -242,20 +252,79 @@ def service_settings(data: str = Form(...)):
     return {"ok": True}
 
 
+@app.post("/api/service/template")
+def service_template(kind: str = Form(...)):
+    service.apply_template(kind)
+    return {"ok": True, "settings": service.settings()}
+
+
+@app.post("/api/service/describe")
+async def service_describe(text: str = Form(None), lang: str = Form("en"), audio: UploadFile = File(None)):
+    """Owner describes the business by voice or text, in any language -> settings filled in."""
+    try:
+        require_keys(voice=audio is not None)
+        if audio is not None:
+            h = hear(await audio.read(), lang)
+            text, lang = h["text"], h["lang"]
+        else:
+            lang = detect_script_language(text or "", lang)
+        if not text:
+            return err(Exception("Didn't hear anything, please try again."))
+        out = service.setup_from_description(text, lang)
+        rb = out.get("readback", "")
+        out.update(heard=text, lang=lang, audio=voice_clips(rb, lang) if out.get("ok") else [],
+                   rest=_sentences(rb)[1:] if out.get("ok") else [])
+        return out
+    except KeyNotSet as e:
+        return err(e)
+
+
+@app.get("/api/service/callers")
+def service_callers():
+    rows = db.q("SELECT DISTINCT phone, name, title FROM records")
+    return [{"phone": r["phone"], "name": f"{r['name']} — {r['title']}"} for r in rows]
+
+
 # ---------------- Section 2: Dashboard Connect ----------------
 @app.get("/api/connect")
 def connect_get():
     c = connect.connection()
     if c:
         c = {**c, "api_key": "••••" + c["api_key"][-3:]}
-    return {"connection": c, "rules": connect.rules(),
+    return {"connection": c, "rules": connect.rules(), "profile": connect.profile(),
             "tickets": db.q("SELECT * FROM tickets WHERE section='connect' ORDER BY created DESC")}
 
 
 @app.post("/api/connect")
-def connect_post(base_url: str = Form(...), api_key: str = Form(...), key_header: str = Form("X-API-Key"),
+def connect_post(base_url: str = Form(...), api_key: str = Form(""), key_header: str = Form("X-API-Key"),
                  name: str = Form("")):
     return connect.discover(base_url, api_key, key_header, name)
+
+
+@app.post("/api/connect/profile")
+def connect_profile(name: str = Form(""), about: str = Form(""), agent_name: str = Form("")):
+    connect.save_profile({"name": name, "about": about, "agent_name": agent_name})
+    return {"ok": True}
+
+
+@app.post("/api/connect/describe")
+async def connect_describe(text: str = Form(None), lang: str = Form("en"), audio: UploadFile = File(None)):
+    try:
+        require_keys(voice=audio is not None)
+        if audio is not None:
+            h = hear(await audio.read(), lang)
+            text, lang = h["text"], h["lang"]
+        else:
+            lang = detect_script_language(text or "", lang)
+        if not text:
+            return err(Exception("Didn't hear anything, please try again."))
+        out = connect.describe_company(text, lang)
+        rb = out.get("readback", "")
+        out.update(heard=text, lang=lang, audio=voice_clips(rb, lang) if out.get("ok") else [],
+                   rest=_sentences(rb)[1:] if out.get("ok") else [])
+        return out
+    except KeyNotSet as e:
+        return err(e)
 
 
 @app.post("/api/connect/permission")

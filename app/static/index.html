@@ -50,16 +50,35 @@
   <!-- ===================== SECTION 1: SERVICE CENTER ===================== -->
   <section class="panel" id="service">
     <div class="card">
-      <h2>Schedule <small class="muted" id="shopname"></small></h2>
+      <h2>Set up your business <small class="muted" id="shopname"></small></h2>
+      <p class="muted">Any business: kirana store, clinic, salon, restaurant, repair shop… Pick a type, or just
+        <b>describe your business in your own language</b> and the agent sets itself up. You can change everything below.</p>
+      <div class="row wrap">
+        <label>Business type<select id="btype"></select></label>
+      </div>
+      <div class="row">
+        <button id="descmic">🎤 Hold & describe</button>
+        <form id="descform" class="row grow"><input id="desctext" autocomplete="off"
+          placeholder="e.g. ನನ್ನದು ಕಿರಾಣಿ ಅಂಗಡಿ, ಬೆಳಿಗ್ಗೆ 7 ರಿಂದ ರಾತ್ರಿ 9, ಅಕ್ಕಿ ಕೆಜಿಗೆ 60, home delivery ಇದೆ"><button>Set up</button></form>
+      </div>
+      <div id="descout" class="muted"></div>
+    </div>
+    <div class="card" id="schedcard">
+      <h2 id="schedtitle">Schedule</h2>
       <div id="schedule" class="days"></div>
     </div>
     <div class="grid2">
-      <div class="card"><h3>Repairs in shop</h3><div id="jobs"></div></div>
+      <div class="card"><h3 id="rectitle">Records</h3><div id="jobs"></div></div>
       <div class="card"><h3>🔔 Notifications</h3><ul id="snotes" class="notes"></ul></div>
     </div>
     <div class="card"><h3>Tickets & callbacks</h3><div id="stickets"></div></div>
     <div class="card"><h3>Recent calls</h3><div id="scalls"></div></div>
-    <details class="card"><summary><b>⚙️ Shop settings</b> (hours, slots, prices the agent uses)</summary>
+    <div class="card"><h3>🛒 Items, services & prices <small class="muted">the agent answers only from this list</small></h3>
+      <div id="catalog"></div>
+      <form id="catform" class="row wrap"><input name="n" placeholder="Item / service" required><input name="p" placeholder="Price ₹" style="max-width:110px">
+        <input name="u" placeholder="Unit (1 kg, plate, visit)" style="max-width:190px"><input name="x" placeholder="Note (in stock, 30 min…)"><button>Add</button></form>
+    </div>
+    <details class="card"><summary><b>⚙️ Settings</b> (hours, what the agent can do, info it may tell callers)</summary>
       <form id="settings" class="settings"></form>
     </details>
   </section>
@@ -67,12 +86,25 @@
   <!-- ===================== SECTION 2: DASHBOARD CONNECT ===================== -->
   <section class="panel hidden" id="connect">
     <div class="card">
+      <h2>Your company</h2>
+      <p class="muted">Any company: e-commerce, fintech, insurance, telecom, logistics, education… Describe your company and how
+        support should work, <b>by voice in any language</b>. The agent sets itself up, and proposes rules for you to approve.</p>
+      <div class="row">
+        <button id="cdescmic">🎤 Hold & describe</button>
+        <form id="cdescform" class="row grow"><input id="cdesctext" autocomplete="off"
+          placeholder="e.g. हमारी कंपनी QuickKart एक online shopping app है। order late हो तो पहले status बताओ, फिर complaint लो।"><button>Set up</button></form>
+      </div>
+      <div id="cdescout" class="muted"></div>
+      <form id="profform" class="settings"></form>
+    </div>
+    <div class="card">
       <h2>1 · Connect your dashboard</h2>
-      <p class="muted">Give your dashboard's address and an API key. Sahaaya reads what your dashboard can do
-        and turns each action into something the agent can use. <a id="demolink" target="_blank">Open the sample QuickKart dashboard ↗</a></p>
+      <p class="muted">Give your dashboard's API address and key, <b>or a Google Sheet / CSV link</b> if you don't have an API.
+        Sahaaya reads what your system can do and turns each action into something the agent can use.
+        <a id="demolink" target="_blank">Open the sample QuickKart dashboard ↗</a></p>
       <form id="connform" class="row wrap">
-        <input name="base_url" placeholder="https://your-dashboard.com" required>
-        <input name="api_key" placeholder="API key" required>
+        <input name="base_url" placeholder="https://your-dashboard.com  or  Google Sheet link" required>
+        <input name="api_key" placeholder="API key (not needed for a sheet)">
         <input name="key_header" value="X-API-Key" title="Header name for the key">
         <button class="primary">Connect</button>
       </form>

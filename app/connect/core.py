@@ -23,7 +23,59 @@ def connection() -> dict | None:
     return db.get("connection")
 
 
+def _sheet_csv_url(url: str) -> str | None:
+    m = re.search(r"docs\.google\.com/spreadsheets/d/([\w-]+)", url)
+    if m:
+        gid = re.search(r"[#&?]gid=(\d+)", url)
+        return f"https://docs.google.com/spreadsheets/d/{m.group(1)}/export?format=csv" + (f"&gid={gid.group(1)}" if gid else "")
+    if url.lower().split("?")[0].endswith(".csv"):
+        return url
+    return None
+
+
+def _read_csv(url: str, conn: dict | None = None) -> list[dict]:
+    import csv
+    import io
+    h = {conn["key_header"]: conn["api_key"]} if conn and conn.get("api_key") else {}
+    r = requests.get(url, timeout=10, headers=h)
+    r.raise_for_status()
+    return list(csv.DictReader(io.StringIO(r.content.decode("utf-8-sig"))))
+
+
+def discover_sheet(url: str, api_key: str = "", key_header: str = "X-API-Key", name: str = "") -> dict:
+    """For companies without an API: a Google Sheet (shared 'anyone with link') or any CSV link."""
+    csv_url = _sheet_csv_url(url)
+    try:
+        rows = _read_csv(csv_url, {"api_key": api_key, "key_header": key_header})
+    except Exception as e:
+        return {"ok": False, "error": f"Could not read the sheet ({e.__class__.__name__}). Share it as 'anyone with the link'."}
+    if not rows:
+        return {"ok": False, "error": "The sheet is empty."}
+    cols = list(rows[0].keys())
+    phone_col = next((c for c in cols if re.search(r"phone|mobile|contact", c, re.I)), None)
+    ops = [{"id": "search_records", "method": "SHEET", "path": csv_url, "params": {"query": "string"},
+            "summary": f"Search the sheet (columns: {', '.join(cols)[:200]})", "permission": "allowed"}]
+    if phone_col:
+        ops.insert(0, {"id": "find_my_records", "method": "SHEET", "path": csv_url, "params": {"phone": "string"},
+                       "summary": f"Find the caller's rows by phone number (column '{phone_col}')", "permission": "allowed"})
+    conn = {"name": name or "Company sheet", "description": "", "base_url": url, "api_key": api_key,
+            "key_header": key_header, "ops": ops, "kind": "sheet", "phone_col": phone_col}
+    db.put("connection", conn)
+    return {"ok": True, "name": conn["name"], "actions": len(ops)}
+
+
+def _drop_sample_rules(new_url: str):
+    """Switching to a different dashboard: the demo company's sample rules no longer apply.
+    Rules the owner taught are kept."""
+    old = connection()
+    if old and old.get("base_url") != new_url:
+        db.put("rules", [r for r in rules() if not r.get("said", "").startswith("(sample rules")])
+
+
 def discover(base_url: str, api_key: str, key_header: str = "X-API-Key", name: str = "") -> dict:
+    _drop_sample_rules(base_url)
+    if _sheet_csv_url(base_url):
+        return discover_sheet(base_url, api_key, key_header, name)
     base = base_url.rstrip("/")
     spec = None
     for path in ("/openapi.json", "/swagger.json", "/api/openapi.json"):
@@ -63,6 +115,55 @@ def set_permission(op_id: str, permission: str):
     db.put("connection", conn)
 
 
+# ---------- company profile ----------
+def profile() -> dict:
+    conn = connection() or {}
+    p = db.get("connect_profile") or {}
+    return {"name": p.get("name") or conn.get("name") or "Company", "about": p.get("about") or conn.get("description", ""),
+            "agent_name": p.get("agent_name") or "Sahaaya", "default_language": p.get("default_language", "kn")}
+
+
+def save_profile(data: dict):
+    db.put("connect_profile", {**profile(), **{k: v for k, v in data.items() if v}})
+
+
+def describe_company(text: str, lang: str = "en") -> dict:
+    """Owner describes the company and how support should work, in any language:
+    fills the profile and proposes rules (owner approves them)."""
+    from ..ai.languages import NAMES
+    conn = connection()
+    actions = "\n".join(f"- {o['id']}: {o['summary']}" for o in conn["ops"]) if conn else "(none connected yet)"
+    msg = LLM().chat([{"role": "system", "content":
+        "A company owner describes their company and how phone support should handle customers (any language). "
+        "Use ONLY what they said. JSON only: {\"name\": str, \"about\": \"what the company does, in English\", "
+        "\"agent_name\": str or null, \"rules\": [\"When ..., do ...\" only for instructions they gave, using these "
+        "dashboard action names where relevant], \"readback\": \"2 short sentences in " + NAMES.get(lang, "English") +
+        " confirming what you understood\"}\nDashboard actions:\n" + actions},
+        {"role": "user", "content": text}], temperature=0.1, max_tokens=800)
+    m = re.search(r"\{.*\}", msg.get("content") or "", re.S)
+    try:
+        data = json.loads(m.group(0))
+    except Exception:
+        return {"ok": False, "error": "Could not understand, please describe it again more simply."}
+    save_profile({"name": data.get("name"), "about": data.get("about"), "agent_name": data.get("agent_name")})
+    new = [{"id": max([r["id"] for r in rules()] + [0]) + i + 1, "rule": r, "said": text, "lang": lang, "approved": False}
+           for i, r in enumerate(data.get("rules") or [])]
+    db.put("rules", rules() + new)
+    return {"ok": True, "profile": profile(), "rules": new, "readback": data.get("readback", "")}
+
+
+def seed_demo_rules():
+    """The sample QuickKart dashboard comes with the owner's KYC rules already taught (as an example)."""
+    if rules():
+        return
+    demo = ["When a customer asks about KYC or an order on hold, check their account and orders first.",
+            "If the documents are fine, offer to run recheck_kyc (after the customer says yes) to verify and release held orders.",
+            "If a document is blurry, missing, not uploaded or KYC is not started, NEVER offer a re-check or verification: "
+            "offer send_kyc_upload_link and explain the steps."]
+    db.put("rules", [{"id": i + 1, "rule": r, "said": "(sample rules for the QuickKart demo)", "lang": "en", "approved": True}
+                     for i, r in enumerate(demo)])
+
+
 # ---------- teaching ----------
 def rules() -> list[dict]:
     return db.get("rules", [])
@@ -85,7 +186,7 @@ def teach(instruction: str, lang: str = "en") -> dict:
         data = json.loads(m.group(0))
     except Exception:
         return {"ok": False, "error": "Could not understand, please say it again more simply."}
-    new = [{"id": len(rules()) + i + 1, "rule": r, "said": instruction, "lang": lang, "approved": False}
+    new = [{"id": max([r["id"] for r in rules()] + [0]) + i + 1, "rule": r, "said": instruction, "lang": lang, "approved": False}
            for i, r in enumerate(data.get("rules", []))]
     db.put("rules", rules() + new)
     return {"ok": True, "rules": new, "readback": data.get("readback", "")}
@@ -152,9 +253,31 @@ class Guard:
         return {"verified": False, "note": "Does not match. Do not share any details."}
 
 
+def _sheet_op(conn: dict, op: dict, args: dict, guard: "Guard") -> dict:
+    try:
+        rows = _read_csv(op["path"], conn)
+    except Exception as e:
+        return {"error": f"sheet not reachable ({e.__class__.__name__})"}
+    pc = conn.get("phone_col")
+    norm = lambda v: re.sub(r"\D", "", str(v))[-10:]
+    if op["id"] == "find_my_records":
+        mine = [r for r in rows if pc and norm(r.get(pc, "")) == guard.caller]
+        return {"found": len(mine), "rows": mine[:10]}
+    words = [w.lower() for w in re.findall(r"\w+", str(args.get("query", ""))) if len(w) > 1]
+    hits = [r for r in rows if all(any(w in str(v).lower() for v in r.values()) for w in words)] if words else rows
+    if pc:   # privacy: only the caller's own rows from a sheet that has phone numbers
+        hidden = [r for r in hits if norm(r.get(pc, "")) != guard.caller]
+        hits = [r for r in hits if norm(r.get(pc, "")) == guard.caller]
+        if hidden and not hits:
+            return {"found": 0, "withheld": True, "note": "Matching rows belong to other phone numbers. Reveal nothing."}
+    return {"found": len(hits), "rows": hits[:10]}
+
+
 def call_op(conn: dict, op: dict, args: dict, guard: Guard) -> dict:
     if op["permission"] == "blocked":
         return {"error": "This action is blocked by the business owner."}
+    if op["method"] == "SHEET":
+        return _sheet_op(conn, op, args, guard)
     path, path_values = op["path"], []
     for name in re.findall(r"\{(\w+)\}", path):
         val = str(args.get(name, "")).strip()
@@ -226,21 +349,18 @@ def prefetch(caller: str, tools_by_name: dict) -> str:
 
 def turn_rules() -> str:
     approved = [r["rule"] for r in rules() if r["approved"]]
-    base = ["Re-check / re-verify only helps when the documents are fine. If a document is blurry, "
-            "missing or not uploaded, the fix is the upload link, never a re-check."]
+    base = ["Before offering an action, check the record shows it can actually fix the problem."]
     return "\n".join("- " + r for r in approved + base)
 
 
 def persona() -> str:
-    conn = connection()
     approved = [r["rule"] for r in rules() if r["approved"]]
-    name = conn["name"] if conn else "the company"
-    return f"""You are the customer support voice agent of "{name}". {conn.get('description', '') if conn else ''}
+    p = profile()
+    return f"""You are {p['agent_name']}, the customer support voice agent of "{p['name']}". {p['about']}
 You work inside the company's dashboard using the tools. Start by finding the caller's account
 with their phone number. Explain problems simply, like a helpful human, and guide the caller
 step by step when they must do something themselves.
-Before offering an action, make sure the record shows it can actually help. For example, a re-check
-cannot fix a blurry or missing document: then the customer must re-upload, so offer the upload link.
+Before offering an action, make sure the record shows it can actually help the problem.
 An "expected" date on an order that is on hold is NOT a promise: never promise dates; follow the owner's rules.
 Dates from the dashboard are YYYY-MM-DD; use the calendar to say the weekday correctly.
 OWNER'S RULES (follow exactly):

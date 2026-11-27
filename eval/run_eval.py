@@ -75,9 +75,7 @@ def main():
     a = ap.parse_args()
     db.init(); service.seed()
     assert connect.discover(os.environ.get("DASHBOARD", "http://127.0.0.1:9000"), "demo-key-123")["ok"], "start the sample dashboard"
-    for text in ["When a customer asks about KYC, recheck_kyc if their documents are fine.",
-                 "If the photo is blurry or documents are missing, send_kyc_upload_link and explain the steps."]:
-        db.put("rules", connect.rules() + [{"id": len(connect.rules()) + 1, "rule": text, "said": text, "lang": "en", "approved": True}])
+    connect.seed_demo_rules()          # exactly what the app does for the sample dashboard
     cases = yaml.safe_load(open("eval/dataset.yaml", encoding="utf-8"))["cases"]
     jobs = [(c, k) for c in cases for k in c["q"]]
     with ThreadPoolExecutor(a.workers) as ex:

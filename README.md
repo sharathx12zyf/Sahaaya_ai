@@ -1,6 +1,6 @@
 # Sahaaya AI — a multilingual voice agent for every business
 
-Customers call and **talk in their own language** (Kannada, Hindi, Telugu, Tamil, English, and mixed
+Customers call and **talk in their own language** (English, Kannada, Hindi, Telugu, and mixed
 speech like Kanglish/Hinglish). Sahaaya answers like a real person, **checks the business's real data**,
 and **gets the job done**: books a slot, re-runs a KYC check, sends an upload link, or raises a ticket.
 
